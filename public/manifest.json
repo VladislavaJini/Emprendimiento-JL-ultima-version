@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Muebles J&L — Taller Activo",
+  "short_name": "Muebles J&L",
+  "description": "App móvil Android de carpintería: Guillotina 2D, Atelier CAD 3D, Catálogo BOM, Fletes y Finanzas.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121414",
+  "theme_color": "#121414",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

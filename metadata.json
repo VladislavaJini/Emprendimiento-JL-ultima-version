@@ -1,0 +1,6 @@
+{
+  "name": "Muebles J&L — Warm Atelier ERP & CAD",
+  "description": "Sistema integral de carpintería de precisión: optimizador de corte Guillotina 2D, visor Atelier CAD 3D, catálogo con escandallo BOM, logística de fletes y gestión financiera.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

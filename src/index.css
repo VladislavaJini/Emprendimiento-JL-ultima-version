@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: 'Epilogue', sans-serif;
+  --font-sans: 'DM Sans', sans-serif;
+
+  --color-surface: #121414;
+  --color-surface-dim: #121414;
+  --color-surface-bright: #383939;
+  --color-surface-lowest: #0d0e0f;
+  --color-surface-low: #1a1c1c;
+  --color-surface-container: #1e2020;
+  --color-surface-high: #292a2a;
+  --color-surface-highest: #343535;
+  --color-on-surface: #e3e2e2;
+  --color-on-surface-variant: #ddc1b7;
+  --color-outline: #a48b83;
+  --color-outline-variant: #56423c;
+  --color-primary: #ffb59b;
+  --color-on-primary: #5b1a00;
+  --color-primary-container: #e87a50;
+  --color-on-primary-container: #5c1b00;
+  --color-inverse-primary: #9e421d;
+  --color-secondary: #c8c6c5;
+  --color-tertiary: #717171;
+}
+
+@layer base {
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #121414;
+    color: #e3e2e2;
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Epilogue', sans-serif;
+  }
+}
+
+.atelier-card {
+  background-color: #181a1a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.36), 0 2px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.atelier-subcard {
+  background-color: #202222;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.atelier-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #e87a50,
+    #e87a50 2px,
+    transparent 2px,
+    transparent 5px
+  );
+}
+
+.cad-grid-bg {
+  background-color: #131515;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #121414;
+}
+::-webkit-scrollbar-thumb {
+  background: #292a2a;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #e87a50;
+}

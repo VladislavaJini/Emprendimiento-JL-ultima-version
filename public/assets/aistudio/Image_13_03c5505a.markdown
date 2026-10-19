@@ -1,0 +1,210 @@
+---
+name: Warm Atelier
+colors:
+  surface: '#121414'
+  surface-dim: '#121414'
+  surface-bright: '#383939'
+  surface-container-lowest: '#0d0e0f'
+  surface-container-low: '#1a1c1c'
+  surface-container: '#1e2020'
+  surface-container-high: '#292a2a'
+  surface-container-highest: '#343535'
+  on-surface: '#e3e2e2'
+  on-surface-variant: '#ddc1b7'
+  inverse-surface: '#e3e2e2'
+  inverse-on-surface: '#2f3131'
+  outline: '#a48b83'
+  outline-variant: '#56423c'
+  surface-tint: '#ffb59b'
+  primary: '#ffb59b'
+  on-primary: '#5b1a00'
+  primary-container: '#e87a50'
+  on-primary-container: '#5c1b00'
+  inverse-primary: '#9e421d'
+  secondary: '#c8c6c5'
+  on-secondary: '#313030'
+  secondary-container: '#474746'
+  on-secondary-container: '#b7b5b4'
+  tertiary: '#c7c6c6'
+  on-tertiary: '#303031'
+  tertiary-container: '#999898'
+  on-tertiary-container: '#303131'
+  error: '#ffb4ab'
+  on-error: '#690005'
+  error-container: '#93000a'
+  on-error-container: '#ffdad6'
+  primary-fixed: '#ffdbcf'
+  primary-fixed-dim: '#ffb59b'
+  on-primary-fixed: '#380d00'
+  on-primary-fixed-variant: '#7e2b06'
+  secondary-fixed: '#e5e2e1'
+  secondary-fixed-dim: '#c8c6c5'
+  on-secondary-fixed: '#1c1b1b'
+  on-secondary-fixed-variant: '#474746'
+  tertiary-fixed: '#e3e2e2'
+  tertiary-fixed-dim: '#c7c6c6'
+  on-tertiary-fixed: '#1b1c1c'
+  on-tertiary-fixed-variant: '#464747'
+  background: '#121414'
+  on-background: '#e3e2e2'
+  surface-variant: '#343535'
+typography:
+  headline-xl:
+    fontFamily: Epilogue
+    fontSize: 40px
+    fontWeight: '700'
+    lineHeight: 48px
+    letterSpacing: -0.03em
+  headline-xl-mobile:
+    fontFamily: Epilogue
+    fontSize: 30px
+    fontWeight: '700'
+    lineHeight: 36px
+    letterSpacing: -0.02em
+  headline-lg:
+    fontFamily: Epilogue
+    fontSize: 28px
+    fontWeight: '600'
+    lineHeight: 34px
+    letterSpacing: -0.02em
+  headline-md:
+    fontFamily: Epilogue
+    fontSize: 22px
+    fontWeight: '600'
+    lineHeight: 28px
+    letterSpacing: -0.01em
+  headline-sm:
+    fontFamily: Epilogue
+    fontSize: 18px
+    fontWeight: '600'
+    lineHeight: 24px
+  body-lg:
+    fontFamily: DM Sans
+    fontSize: 16px
+    fontWeight: '400'
+    lineHeight: 24px
+  body-md:
+    fontFamily: DM Sans
+    fontSize: 14px
+    fontWeight: '400'
+    lineHeight: 20px
+  body-sm:
+    fontFamily: DM Sans
+    fontSize: 12px
+    fontWeight: '400'
+    lineHeight: 16px
+  label-lg:
+    fontFamily: DM Sans
+    fontSize: 14px
+    fontWeight: '600'
+    lineHeight: 18px
+    letterSpacing: 0.01em
+  label-md:
+    fontFamily: DM Sans
+    fontSize: 12px
+    fontWeight: '600'
+    lineHeight: 16px
+    letterSpacing: 0.02em
+  label-sm:
+    fontFamily: DM Sans
+    fontSize: 11px
+    fontWeight: '700'
+    lineHeight: 14px
+    letterSpacing: 0.04em
+rounded:
+  sm: 0.125rem
+  DEFAULT: 0.25rem
+  md: 0.375rem
+  lg: 0.5rem
+  xl: 0.75rem
+  full: 9999px
+spacing:
+  gutter: 1rem
+  gutter-desktop: 1.5rem
+  margin: 1.25rem
+  margin-desktop: 3rem
+  space-xs: 0.25rem
+  space-sm: 0.5rem
+  space-md: 1rem
+  space-lg: 1.5rem
+  space-xl: 2rem
+---
+
+## Brand & Style
+
+This design system translates the raw, physical precision of custom carpentry into a digital experience with a warm Scandinavian atelier aesthetic. It serves custom fabricators, master carpenters, architectural woodworkers, and discerning clients who value material honesty, joinery precision, and timeless craftsmanship.
+
+The visual language balances organic warmth with architectural rigor:
+- **Atmospheric Warmth:** Soft dark tones and natural charcoal paper replace stark clinical whites, creating an immersive, focused workshop atmosphere.
+- **Architectural Clarity:** Geometric typographic discipline creates sharp contrast against soft, pill-shaped interactions and rounded material cards.
+- **Tactile Honesty:** Surfaces evoke fine timber, honed stone, and cast terracotta through subtle tonal stacking and diffuse ambient shadows rather than synthetic gradients or noisy skeumorphic textures.
+
+## Colors
+
+The palette draws directly from the workshop: terracotta clay markings, charred oak, kiln-dried birch, and natural tracing linen, optimized for a rich dark mode environment.
+
+- **Primary (`#E87A50`):** Terracotta. Used for focal callouts, active state indicators, critical workshop milestones, and key action anchors.
+- **Secondary (`#1A1A1A`):** Deep Charred Black. Provides high-contrast anchor typography, crisp framing elements, and grounded call-to-actions.
+- **Tertiary (`#717171`):** Muted Slate / Steel. Serves as secondary containment surfaces, button bases, input troughs, and dividers.
+- **Neutral Canvas (`#A1A1A1`):** Industrial Neutral Grey. Forms foundational structural elements and balanced mid-tones, mitigating eye fatigue.
+- **Pure Surface (`#FFFFFF`):** Reserved for elevated tactile cards, floating sheets, and focus components to create natural luminosity against the dark canvas.
+
+## Typography
+
+Typography pairs the structural, geometric presence of **Epilogue** for architectural headings with the clean, neutral legibility of **DM Sans** for utilitarian data, dimensioning, specifications, and long-form narrative.
+
+- **Headlines:** Set in Epilogue with snug letter-spacing to echo structural joinery and poster typography.
+- **Body & Labels:** Set in DM Sans with generous optical line heights for field use on handheld devices and tablet workshop docks.
+- **Numbers & Metrics:** Woodworking requires rapid metric comprehension; all key dimensions, lumber grades, and tolerances utilize tabular numerals within DM Sans for strict vertical alignment.
+
+## Layout & Spacing
+
+The layout is governed by an 8-point base grid system, delivering rhythmic predictability across viewports:
+
+- **Mobile (under 768px):** 4-column fluid layout with `margin: 1.25rem` and `gutter: 1rem`. Bottom navigation bars and floating dock containers anchor touch targets within thumb reach.
+- **Tablet (768px - 1024px):** 8-column layout accommodating dual split-panes (e.g., cut lists alongside project blueprints).
+- **Desktop (above 1024px):** 12-column fixed-max layout capped at 1280px with `margin-desktop: 3rem` to maintain comfortable eye-tracking across multi-metric atelier dashboards.
+- **Component Breathing Room:** High component-level padding (`space-lg` to `space-xl`) inside cards preserves a calm, uncluttered workshop environment.
+
+## Elevation & Depth
+
+Depth is established through soft, warm tonal stacking layered with dark ambient shadows, avoiding sterile grey drops.
+
+- **Level 0 (Canvas):** Ground plane set in deep dark canvas tones.
+- **Level 1 (Recessed Well):** Inset controls, search inputs, and inactive meters sit flush or slightly pressed into the background using `#717171` without borders.
+- **Level 2 (Cards & Panels):** Raised surfaces cast an ambient shadow tinted with warm umber: `box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.36), 0 2px 6px -1px rgba(0, 0, 0, 0.2)`.
+- **Level 3 (Floating Docks & Sheets):** Interactive navigation docks and overlay modal cards feature increased elevation: `box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.5), 0 4px 12px -2px rgba(0, 0, 0, 0.3)`.
+
+## Shapes
+
+The shape system blends structured planar cards with soft, touch-friendly rounded accents reflecting hand-sanded timber edges with a subtle, modern radius.
+
+- **Base Radius (`rounded`, 0.25rem / 4px):** Standard containers, small thumbnail previews, inputs, and badges.
+- **Large Radius (`rounded-lg`, 0.5rem / 8px):** Primary content cards, material panels, and bottom sheets.
+- **Extra Large Radius (`rounded-xl`, 0.75rem / 12px):** Modal sheets, hero containers, and elevated showcase cards.
+- **Pill Radius (`rounded-full`, 9999px):** Applied to primary action buttons, filter tags, chip indicators, and tactile navigation pods to communicate instantaneous pressability.
+
+## Components
+
+### Buttons
+- **Primary:** Full pill (`rounded-full`), deep charred black background (`#1A1A1A`) with pure white text, or terracotta (`#E87A50`) for key actions. Generous horizontal padding (`space-xl`), height 48px.
+- **Secondary:** Muted slate fill (`#717171`), text `#1A1A1A`, full pill shape. No border.
+- **Tertiary / Ghost:** Transparent base, `#1A1A1A` text with subtle hover tinting in `rgba(232, 122, 80, 0.08)`.
+
+### Cards & Panels
+- **Material Card:** Surface `#1a1c1c`, `rounded-xl`, subtle terracotta ambient shadow. Padded with `space-lg`.
+- **Inset Stat Card:** Muted slate background `#717171`, `rounded-lg`, internal spacing `space-md`, devoid of outer shadows to convey an integrated workbench meter.
+
+### Chips & Filters
+- **Category Chips:** Inactive chips feature a slate background (`#717171`) with `#1A1A1A` text and optional timber/material iconography.
+- **Active State:** Terracotta background (`#E87A50`) with white text and smooth spring transitions. Full pill shape.
+
+### Input Fields & Search
+- **Search Bar:** Pill-shaped (`rounded-full`), surface background with soft ambient shadow or `#717171` flush surface. Prefix search icon in `#1A1A1A`, placeholder text in muted umber charcoal.
+- **Form Inputs:** Muted slate fill (`#717171`), `rounded-lg` (8px), no border until focused. Focus ring: 2px solid `#E87A50` with 0px offset.
+
+### Selection Controls
+- **Checkboxes & Radios:** 20px controls with 4px border radius for checkboxes and circular for radios. Inactive: `#717171` with a 1.5px soft charcoal edge. Checked: solid `#E87A50` with pure white check/bullet.
+
+### Progress & Measurement Indicators
+- **Radial & Arc Gauges:** Segmented block meters inspired by woodworking gauge dials. Active increments transition smoothly from soft peach into solid `#E87A50`, while empty steps remain muted slate `#717171`.
