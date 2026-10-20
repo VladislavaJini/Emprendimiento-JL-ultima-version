@@ -10,6 +10,7 @@ import {
   Banknote,
   Ruler,
   Scissors,
+  RotateCcw,
   Check,
   X,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ interface ScreenCalculadorFiloProps {
   onAddPiece: (piece: EdgeBandingPiece) => void;
   onUpdatePiece: (id: string, updated: Partial<EdgeBandingPiece>) => void;
   onDeletePiece: (id: string) => void;
+  onResetPieces: () => void;
   onShowToast: (msg: string) => void;
 }
 
@@ -50,6 +52,7 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
   onAddPiece,
   onUpdatePiece,
   onDeletePiece,
+  onResetPieces,
   onShowToast,
 }) => {
   const [showRollDropdown, setShowRollDropdown] = useState(false);
@@ -114,21 +117,30 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
     (totalNetMeters + totalWasteMeters).toFixed(2)
   );
 
-  const exactSpentOnPiecesArs = Math.round(totalRequiredMeters * pricePerMeterArs);
-  const rollsNeeded = Math.max(
-    1,
-    Math.ceil(totalRequiredMeters / Math.max(0.5, activeRoll.rollLengthMeters))
-  );
-  const totalBoughtMeters = Number(
-    (rollsNeeded * activeRoll.rollLengthMeters).toFixed(2)
-  );
-  const remainingRollMeters = Number(
-    Math.max(0, totalBoughtMeters - totalRequiredMeters).toFixed(2)
-  );
-  const rollUsedPercent = Math.min(
-    100,
-    Math.round((totalRequiredMeters / Math.max(0.5, totalBoughtMeters)) * 100)
-  );
+  const exactSpentOnPiecesArs =
+    pieces.length === 0 ? 0 : Math.round(totalRequiredMeters * pricePerMeterArs);
+  const rollsNeeded =
+    pieces.length === 0 || totalRequiredMeters <= 0
+      ? 0
+      : Math.max(
+          1,
+          Math.ceil(totalRequiredMeters / Math.max(0.5, activeRoll.rollLengthMeters))
+        );
+  const totalBoughtMeters =
+    pieces.length === 0
+      ? 0
+      : Number((rollsNeeded * activeRoll.rollLengthMeters).toFixed(2));
+  const remainingRollMeters =
+    pieces.length === 0
+      ? 0
+      : Number(Math.max(0, totalBoughtMeters - totalRequiredMeters).toFixed(2));
+  const rollUsedPercent =
+    pieces.length === 0 || totalBoughtMeters <= 0
+      ? 0
+      : Math.min(
+          100,
+          Math.round((totalRequiredMeters / Math.max(0.5, totalBoughtMeters)) * 100)
+        );
 
   // Open Modal to Edit existing roll
   const openEditRollModal = (roll: EdgeBandingRoll) => {
@@ -250,6 +262,27 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
 
   return (
     <div className="space-y-4 pb-8">
+      {/* Top Action Row */}
+      <div className="grid grid-cols-12 gap-2.5">
+        <button
+          onClick={onResetPieces}
+          className="col-span-7 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#271e1a] hover:bg-[#332620] border border-[#4d352b] text-[#f2ded7] text-xs font-semibold transition-colors cursor-pointer"
+        >
+          <RotateCcw className="w-4 h-4 text-[#ffb59b] shrink-0" />
+          <span className="leading-tight text-center">
+            Reiniciar Todo en 0 (Filo Limpio)
+          </span>
+        </button>
+
+        <button
+          onClick={openNewRollModal}
+          className="col-span-5 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#1e2020] hover:bg-[#292a2a] border border-white/10 text-[#ffb59b] text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
+        >
+          <Palette className="w-3.5 h-3.5 text-[#ffb59b] shrink-0" />
+          <span>+ Agregar Color</span>
+        </button>
+      </div>
+
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center justify-between">
@@ -259,13 +292,9 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
               CALCULADOR DE TAPACANTOS
             </span>
           </div>
-          <button
-            onClick={openNewRollModal}
-            className="text-xs font-bold text-[#ffb59b] hover:text-[#e87a50] flex items-center gap-1 cursor-pointer"
-          >
-            <Palette className="w-3.5 h-3.5" />
-            <span>+ Agregar Color</span>
-          </button>
+          <span className="text-[11px] font-bold text-[#c8c6c5] tabular-nums">
+            Uso: {rollUsedPercent}%
+          </span>
         </div>
 
         <h1 className="text-2xl font-bold font-display text-white tracking-tight">
@@ -717,172 +746,219 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
             </span>
           </div>
 
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={onResetPieces}
+              title="Reiniciar todas las piezas y consumo de filo a 0 absoluto"
+              className="h-8 px-2.5 rounded-lg bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/70 text-[#ffb59b] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+            >
+              <RotateCcw className="w-3 h-3 text-[#ffb59b]" />
+              <span>Reiniciar</span>
+            </button>
+
+            <button
+              onClick={openNewPieceModal}
+              className="h-8 px-2.5 rounded-lg bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Pieza</span>
+            </button>
+          </div>
+        </div>
+
+        {pieces.length === 0 ? (
+          <div className="atelier-card rounded-2xl p-6 text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-[#271e1a] border border-[#e87a50]/40 flex items-center justify-center text-[#ffb59b]">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Calculador de Filo en 0 Absoluto
+              </h3>
+              <p className="text-xs text-[#c8c6c5] mt-1">
+                No hay ninguna pieza cargada (0 m consumidos • $0 gastados). Agrega piezas de madera para calcular el filo.
+              </p>
+            </div>
+            <div className="flex items-center justify-center pt-1">
+              <button
+                onClick={openNewPieceModal}
+                className="px-4 py-2.5 rounded-xl bg-[#e87a50] text-[#121414] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Agregar Primera Pieza p/ Filo</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pieceCalculations.map(({ piece, totalMeters, costArs }, idx) => (
+              <div
+                key={piece.id}
+                className="atelier-card rounded-2xl p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[#3c241b] text-[#ffb59b] text-xs font-bold flex items-center justify-center shrink-0 tabular-nums">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white leading-snug">
+                        {piece.name}
+                      </h3>
+                      <p className="text-xs text-[#c8c6c5] mt-0.5">
+                        {piece.subtitle}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <div className="bg-[#252727] text-[#ffb59b] text-xs font-bold px-2.5 py-1 rounded-lg tabular-nums">
+                      {formatARS(costArs)} ({totalMeters.toFixed(2)}m)
+                    </div>
+                    <button
+                      onClick={() => openEditPieceModal(piece)}
+                      className="p-1.5 rounded-lg bg-[#252727] text-[#e3e2e2] hover:bg-[#e87a50] hover:text-[#121414] transition-colors cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onDeletePiece(piece.id)}
+                      className="p-1.5 rounded-lg bg-[#252727] text-[#c8c6c5] hover:text-[#ffb4ab] transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dimensions & Interactive Sides Toggles */}
+                <div className="bg-[#202222] rounded-xl p-3 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-white tabular-nums">
+                      Medida: {piece.lengthMm} × {piece.widthMm} mm
+                    </span>
+                    <span className="text-[#ffb59b] font-semibold tabular-nums">
+                      {piece.longSidesCount} Largo(s) + {piece.shortSidesCount} Ancho(s)
+                    </span>
+                  </div>
+
+                  {/* Quick Side Buttons (1L, 2L, 1A, 2A, 4 Lados) */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <button
+                      onClick={() =>
+                        onUpdatePiece(piece.id, {
+                          longSidesCount: 1,
+                          shortSidesCount: 0,
+                        })
+                      }
+                      className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        piece.longSidesCount === 1 && piece.shortSidesCount === 0
+                          ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
+                          : 'bg-[#161818] text-[#c8c6c5] border-white/10'
+                      }`}
+                    >
+                      1 Largo
+                    </button>
+                    <button
+                      onClick={() =>
+                        onUpdatePiece(piece.id, {
+                          longSidesCount: 2,
+                          shortSidesCount: 0,
+                        })
+                      }
+                      className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        piece.longSidesCount === 2 && piece.shortSidesCount === 0
+                          ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
+                          : 'bg-[#161818] text-[#c8c6c5] border-white/10'
+                      }`}
+                    >
+                      2 Largos
+                    </button>
+                    <button
+                      onClick={() =>
+                        onUpdatePiece(piece.id, {
+                          longSidesCount: 1,
+                          shortSidesCount: 1,
+                        })
+                      }
+                      className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        piece.longSidesCount === 1 && piece.shortSidesCount === 1
+                          ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
+                          : 'bg-[#161818] text-[#c8c6c5] border-white/10'
+                      }`}
+                    >
+                      1L + 1A
+                    </button>
+                    <button
+                      onClick={() =>
+                        onUpdatePiece(piece.id, {
+                          longSidesCount: 2,
+                          shortSidesCount: 2,
+                        })
+                      }
+                      className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        piece.longSidesCount === 2 && piece.shortSidesCount === 2
+                          ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
+                          : 'bg-[#161818] text-[#c8c6c5] border-white/10'
+                      }`}
+                    >
+                      4 Lados
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quantity Stepper */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#c8c6c5] flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-[#ffb59b]" />
+                    <span>Cantidad de piezas iguales:</span>
+                  </span>
+
+                  <div className="flex items-center gap-3 bg-[#202222] border border-white/10 rounded-full px-2.5 py-1">
+                    <button
+                      onClick={() =>
+                        onUpdatePiece(piece.id, {
+                          quantity: Math.max(1, piece.quantity - 1),
+                        })
+                      }
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-xs font-bold text-white min-w-[16px] text-center tabular-nums">
+                      {piece.quantity}
+                    </span>
+                    <button
+                      onClick={() =>
+                        onUpdatePiece(piece.id, { quantity: piece.quantity + 1 })
+                      }
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <button
+            onClick={onResetPieces}
+            className="h-12 rounded-xl bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/60 text-[#ffb59b] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
+          >
+            <RotateCcw className="w-4 h-4 text-[#e87a50]" />
+            <span>Reiniciar Filo</span>
+          </button>
+
           <button
             onClick={openNewPieceModal}
-            className="text-xs font-bold text-[#ffb59b] hover:text-[#e87a50] cursor-pointer"
+            className="h-12 rounded-xl bg-[#e3e2e2] hover:bg-white text-[#121414] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
           >
-            + Agregar Pieza
+            <Plus className="w-4 h-4" />
+            <span>+ Agregar Pieza</span>
           </button>
         </div>
-
-        <div className="space-y-3">
-          {pieceCalculations.map(({ piece, totalMeters, costArs }, idx) => (
-            <div
-              key={piece.id}
-              className="atelier-card rounded-2xl p-4 space-y-3"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#3c241b] text-[#ffb59b] text-xs font-bold flex items-center justify-center shrink-0 tabular-nums">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white leading-snug">
-                      {piece.name}
-                    </h3>
-                    <p className="text-xs text-[#c8c6c5] mt-0.5">
-                      {piece.subtitle}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <div className="bg-[#252727] text-[#ffb59b] text-xs font-bold px-2.5 py-1 rounded-lg tabular-nums">
-                    {formatARS(costArs)} ({totalMeters.toFixed(2)}m)
-                  </div>
-                  <button
-                    onClick={() => openEditPieceModal(piece)}
-                    className="p-1.5 rounded-lg bg-[#252727] text-[#e3e2e2] hover:bg-[#e87a50] hover:text-[#121414] transition-colors cursor-pointer"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onDeletePiece(piece.id)}
-                    className="p-1.5 rounded-lg bg-[#252727] text-[#c8c6c5] hover:text-[#ffb4ab] transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Dimensions & Interactive Sides Toggles */}
-              <div className="bg-[#202222] rounded-xl p-3 space-y-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-white tabular-nums">
-                    Medida: {piece.lengthMm} × {piece.widthMm} mm
-                  </span>
-                  <span className="text-[#ffb59b] font-semibold tabular-nums">
-                    {piece.longSidesCount} Largo(s) + {piece.shortSidesCount} Ancho(s)
-                  </span>
-                </div>
-
-                {/* Quick Side Buttons (1L, 2L, 1A, 2A, 4 Lados) */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  <button
-                    onClick={() =>
-                      onUpdatePiece(piece.id, {
-                        longSidesCount: 1,
-                        shortSidesCount: 0,
-                      })
-                    }
-                    className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
-                      piece.longSidesCount === 1 && piece.shortSidesCount === 0
-                        ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
-                        : 'bg-[#161818] text-[#c8c6c5] border-white/10'
-                    }`}
-                  >
-                    1 Largo
-                  </button>
-                  <button
-                    onClick={() =>
-                      onUpdatePiece(piece.id, {
-                        longSidesCount: 2,
-                        shortSidesCount: 0,
-                      })
-                    }
-                    className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
-                      piece.longSidesCount === 2 && piece.shortSidesCount === 0
-                        ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
-                        : 'bg-[#161818] text-[#c8c6c5] border-white/10'
-                    }`}
-                  >
-                    2 Largos
-                  </button>
-                  <button
-                    onClick={() =>
-                      onUpdatePiece(piece.id, {
-                        longSidesCount: 1,
-                        shortSidesCount: 1,
-                      })
-                    }
-                    className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
-                      piece.longSidesCount === 1 && piece.shortSidesCount === 1
-                        ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
-                        : 'bg-[#161818] text-[#c8c6c5] border-white/10'
-                    }`}
-                  >
-                    1L + 1A
-                  </button>
-                  <button
-                    onClick={() =>
-                      onUpdatePiece(piece.id, {
-                        longSidesCount: 2,
-                        shortSidesCount: 2,
-                      })
-                    }
-                    className={`py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
-                      piece.longSidesCount === 2 && piece.shortSidesCount === 2
-                        ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
-                        : 'bg-[#161818] text-[#c8c6c5] border-white/10'
-                    }`}
-                  >
-                    4 Lados
-                  </button>
-                </div>
-              </div>
-
-              {/* Quantity Stepper */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#c8c6c5] flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-[#ffb59b]" />
-                  <span>Cantidad de piezas iguales:</span>
-                </span>
-
-                <div className="flex items-center gap-3 bg-[#202222] border border-white/10 rounded-full px-2.5 py-1">
-                  <button
-                    onClick={() =>
-                      onUpdatePiece(piece.id, {
-                        quantity: Math.max(1, piece.quantity - 1),
-                      })
-                    }
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 cursor-pointer"
-                  >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="text-xs font-bold text-white min-w-[16px] text-center tabular-nums">
-                    {piece.quantity}
-                  </span>
-                  <button
-                    onClick={() =>
-                      onUpdatePiece(piece.id, { quantity: piece.quantity + 1 })
-                    }
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button
-          onClick={openNewPieceModal}
-          className="w-full h-12 rounded-xl bg-[#e3e2e2] hover:bg-white text-[#121414] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Agregar Pieza de Madera p/ Filo</span>
-        </button>
       </section>
 
       {/* MODAL 1: AGREGAR / EDITAR ROLLO DE FILO */}

@@ -30,11 +30,19 @@ interface ScreenOperacionesProps {
   showGamificacion?: boolean;
   orders: WorkshopOrder[];
   onUpdateOrderStage: (orderId: string, stage: OrderStage) => void;
+  onUpdateOrder?: (orderId: string, updated: Partial<WorkshopOrder>) => void;
   onAddOrder: (order: Omit<WorkshopOrder, 'id'>) => void;
   onDeleteOrder: (orderId: string) => void;
   onSelectOrderForFreight: (orderId: string) => void;
   cashEfectivo: number;
   cashBancos: number;
+  onUpdateCashBalances?: (efectivo: number, bancos: number) => void;
+  cobradoMes?: number;
+  onUpdateCobradoMes?: (val: number) => void;
+  porPercibir?: number;
+  onUpdatePorPercibir?: (val: number) => void;
+  extraBillingArs?: number;
+  onUpdateExtraBillingArs?: (val: number) => void;
   movements: CashMovement[];
   onAddCashMovement: (
     description: string,
@@ -50,24 +58,41 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   showGamificacion = false,
   orders,
   onUpdateOrderStage,
+  onUpdateOrder,
   onAddOrder,
   onDeleteOrder,
   onSelectOrderForFreight,
   cashEfectivo,
   cashBancos,
+  onUpdateCashBalances,
+  cobradoMes = 1840000,
+  onUpdateCobradoMes,
+  porPercibir = 620000,
+  onUpdatePorPercibir,
+  extraBillingArs = 0,
+  onUpdateExtraBillingArs,
   onAddCashMovement,
   onResetCash,
   onShowToast,
 }) => {
-  // Gamificación state (Ciclo $500.000 ARS, initial $100.000 = 20%)
-  const [historicalBilling, setHistoricalBilling] = useState<number>(100000);
+  // Meta de Fabricación: Suma todas las ventas independientemente del tipo de mueble + simulador
+  const totalOrdersSalesArs = orders.reduce((acc, o) => acc + o.totalArs, 0);
+  const historicalBilling = Math.max(0, totalOrdersSalesArs + extraBillingArs);
   const cycleTarget = 500000;
-  const currentCycleIndex = Math.floor(historicalBilling / cycleTarget) + 1;
+  const currentCycleIndex =
+    historicalBilling <= 0
+      ? 1
+      : Math.floor((historicalBilling - 1) / cycleTarget) + 1;
   const cycleFilledAmount =
-    historicalBilling > 0 && historicalBilling % cycleTarget === 0
+    historicalBilling <= 0
+      ? 0
+      : historicalBilling % cycleTarget === 0
       ? cycleTarget
       : historicalBilling % cycleTarget;
-  const cyclePercent = Math.round((cycleFilledAmount / cycleTarget) * 100);
+  const cyclePercent =
+    historicalBilling <= 0
+      ? 0
+      : Math.round((cycleFilledAmount / cycleTarget) * 100);
 
   // Order filter & creation state
   const [orderFilter, setOrderFilter] = useState<'todos' | OrderStage>('todos');
@@ -77,6 +102,26 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   const [newItems, setNewItems] = useState('');
   const [newTotal, setNewTotal] = useState('245000');
 
+  // Order editing modal state
+  const [showEditOrderModal, setShowEditOrderModal] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editClient, setEditClient] = useState('');
+  const [editDelivery, setEditDelivery] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editItems, setEditItems] = useState('');
+  const [editTotal, setEditTotal] = useState('');
+  const [editMaterial, setEditMaterial] = useState('');
+
+  // KPI Edit modal state
+  const [showEditKpiModal, setShowEditKpiModal] = useState(false);
+  const [editCobradoInput, setEditCobradoInput] = useState(String(cobradoMes));
+  const [editPercibirInput, setEditPercibirInput] = useState(String(porPercibir));
+
+  // Cash Balances Direct Edit state
+  const [showEditCashBalancesModal, setShowEditCashBalancesModal] = useState(false);
+  const [editEfectivoInput, setEditEfectivoInput] = useState(String(cashEfectivo));
+  const [editBancosInput, setEditBancosInput] = useState(String(cashBancos));
+
   // Cash movement modal state
   const [showCashModal, setShowCashModal] = useState(false);
   const [movDesc, setMovDesc] = useState('');
@@ -84,6 +129,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   const [movType, setMovType] = useState<'ingreso' | 'egreso'>('ingreso');
   const [movChannel, setMovChannel] = useState<'efectivo' | 'bancos'>('efectivo');
   const [cajaCerrada, setCajaCerrada] = useState(false);
+  const [showConfirmResetModal, setShowConfirmResetModal] = useState(false);
 
   const filteredOrders =
     orderFilter === 'todos'
@@ -97,8 +143,20 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   const totalCaja = cashEfectivo + cashBancos;
 
   const handleAddBilling = (delta: number) => {
-    setHistoricalBilling((prev) => prev + delta);
+    if (onUpdateExtraBillingArs) {
+      onUpdateExtraBillingArs(extraBillingArs + delta);
+    }
     onShowToast(`Simulador Atelier: +${formatARS(delta)} ARS aplicados al ciclo`);
+  };
+
+  const handleResetGamificacionZero = () => {
+    onResetCash();
+    if (onUpdateExtraBillingArs) {
+      onUpdateExtraBillingArs(0);
+    }
+    onShowToast(
+      'Gamificación Atelier reiniciada en 0 absoluto: 0% fluido y $0 ventas'
+    );
   };
 
   const handleCreateOrder = (e: React.FormEvent) => {
@@ -142,35 +200,109 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
     );
   };
 
+  const openEditOrderModal = (order: WorkshopOrder) => {
+    setEditingOrderId(order.id);
+    setEditClient(order.clientName);
+    setEditDelivery(order.deliveryDate);
+    setEditLocation(order.location);
+    setEditItems(order.itemsSummary);
+    setEditTotal(String(order.totalArs));
+    setEditMaterial(order.materialSpec);
+    setShowEditOrderModal(true);
+  };
+
+  const handleSaveOrderEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrderId || !onUpdateOrder) return;
+    onUpdateOrder(editingOrderId, {
+      clientName: editClient.trim() || 'Cliente Taller',
+      deliveryDate: editDelivery.trim() || 'A coordinar',
+      location: editLocation.trim() || 'Villa Luzuriaga',
+      itemsSummary: editItems.trim() || 'Muebles a medida',
+      totalArs: Math.max(1000, parseInt(editTotal.replace(/\D/g, ''), 10) || 100000),
+      materialSpec: editMaterial.trim() || 'Melamina 18mm',
+    });
+    setShowEditOrderModal(false);
+  };
+
+  const handleSaveKpiEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cobrado = Math.max(0, parseInt(editCobradoInput.replace(/\D/g, ''), 10) || 0);
+    const percibir = Math.max(0, parseInt(editPercibirInput.replace(/\D/g, ''), 10) || 0);
+    if (onUpdateCobradoMes) onUpdateCobradoMes(cobrado);
+    if (onUpdatePorPercibir) onUpdatePorPercibir(percibir);
+    setShowEditKpiModal(false);
+    onShowToast('Métricas financieras del mes actualizadas');
+  };
+
+  const handleSaveCashBalances = (e: React.FormEvent) => {
+    e.preventDefault();
+    const efectivo = Math.max(0, parseInt(editEfectivoInput.replace(/\D/g, ''), 10) || 0);
+    const bancos = Math.max(0, parseInt(editBancosInput.replace(/\D/g, ''), 10) || 0);
+    if (onUpdateCashBalances) {
+      onUpdateCashBalances(efectivo, bancos);
+    }
+    setShowEditCashBalancesModal(false);
+    onShowToast('Saldos de efectivo y bancos actualizados');
+  };
+
   return (
     <div className="space-y-6 pb-8">
-      {/* GAMIFICACIÓN ATELIER MODULE (Shown in Screen 6 / Image_11) */}
+      {/* GAMIFICACIÓN ATELIER MODULE (Shown in Screen Gamificación) */}
       {showGamificacion && (
-        <section className="atelier-card rounded-2xl p-4 space-y-4 border border-white/10">
-          {/* Top Header */}
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
-                <span className="text-[#ffb59b]">GAMIFICACIÓN ATELIER</span>
-                <span className="text-[#a1a1a1]">•</span>
-                <span className="text-[#c8c6c5]">
-                  Ciclo {currentCycleIndex}: $0 - $500k • Terracota Atelier
-                </span>
-              </div>
-              <h2 className="text-lg font-bold font-display text-white mt-1 leading-snug">
-                Meta de Fabricación: Mesita Clásica
-              </h2>
-            </div>
-
-            <div className="bg-[#2c1d17] border border-[#56382d] rounded-xl px-3 py-1.5 flex items-center gap-1.5 shrink-0">
-              <Trophy className="w-3.5 h-3.5 text-[#ffb59b]" />
-              <span className="text-[11px] font-bold text-[#ffb59b] leading-tight">
-                Ciclo
-                <br />
-                Activo
+        <div className="space-y-3">
+          {/* Top Action Row for Gamificación (same reset pattern as other windows) */}
+          <div className="grid grid-cols-12 gap-2.5">
+            <button
+              onClick={handleResetGamificacionZero}
+              className="col-span-7 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#271e1a] hover:bg-[#332620] border border-[#4d352b] text-[#f2ded7] text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4 text-[#ffb59b] shrink-0" />
+              <span className="leading-tight text-center">
+                Reiniciar Todo en 0 (Meta Limpia)
               </span>
-            </div>
+            </button>
+
+            <button
+              onClick={() => handleAddBilling(100000)}
+              className="col-span-5 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#1e2020] hover:bg-[#292a2a] border border-white/10 text-[#ffb59b] text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Trophy className="w-3.5 h-3.5 text-[#ffb59b] shrink-0" />
+              <span>Simular +$100k</span>
+            </button>
           </div>
+
+          <section className="atelier-card rounded-2xl p-4 space-y-4 border border-white/10">
+            {/* Top Header */}
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
+                  <span className="text-[#ffb59b]">GAMIFICACIÓN ATELIER</span>
+                  <span className="text-[#a1a1a1]">•</span>
+                  <span className="text-[#c8c6c5]">
+                    Ciclo {currentCycleIndex}: $0 - $500k • Terracota Atelier
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold font-display text-white mt-1 leading-snug">
+                  Meta de Fabricación
+                </h2>
+                <p className="text-[11px] text-[#c8c6c5] mt-0.5">
+                  Suma todas las ventas ({orders.length}{' '}
+                  {orders.length === 1 ? 'pedido' : 'pedidos'} de cualquier tipo de mueble)
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={handleResetGamificacionZero}
+                  title="Reiniciar Meta de Fabricación y simulador en 0 absoluto"
+                  className="h-8 px-2.5 rounded-xl bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/70 text-[#ffb59b] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3 text-[#ffb59b]" />
+                  <span>Reiniciar</span>
+                </button>
+              </div>
+            </div>
 
           {/* Interactive Proportional Fill Nightstand Visual */}
           <div className="bg-[#141616] rounded-2xl p-5 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden">
@@ -209,7 +341,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                   x="30"
                   y={158 - (132 * cyclePercent) / 100}
                   width="140"
-                  height={(132 * cyclePercent) / 100 + 10}
+                  height={cyclePercent > 0 ? (132 * cyclePercent) / 100 + 10 : 0}
                   fill="#e87a50"
                   className="transition-all duration-500"
                 />
@@ -293,7 +425,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
             <div className="w-full h-2.5 bg-[#252727] rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#e87a50] rounded-full transition-all duration-500"
-                style={{ width: `${Math.max(4, cyclePercent)}%` }}
+                style={{ width: `${cyclePercent}%` }}
               />
             </div>
 
@@ -309,7 +441,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
             <div className="atelier-subcard rounded-xl p-3 flex items-center justify-between mt-2">
               <div>
                 <div className="text-[11px] text-[#a1a1a1]">
-                  Facturación Total Histórica
+                  Ventas Totales Acumuladas (Todos los Muebles)
                 </div>
                 <div className="text-sm font-bold text-white tabular-nums mt-0.5">
                   {formatARS(historicalBilling)} ARS
@@ -368,20 +500,18 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
               </button>
 
               <button
-                onClick={() => {
-                  setHistoricalBilling(100000);
-                  onShowToast('Simulador reiniciado a Ciclo 1 ($100.000 ARS • 20%)');
-                }}
-                className="py-2.5 px-2 rounded-xl bg-[#1e2020] hover:bg-[#292a2a] border border-white/10 flex flex-col items-center justify-center transition-colors cursor-pointer"
+                onClick={handleResetGamificacionZero}
+                className="py-2.5 px-2 rounded-xl bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/60 flex flex-col items-center justify-center transition-colors cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-[#c8c6c5]" />
-                <span className="text-[10px] text-[#c8c6c5] mt-1">
-                  Reiniciar
+                <RotateCcw className="w-3.5 h-3.5 text-[#ffb59b]" />
+                <span className="text-[10px] font-bold text-[#ffb59b] mt-1">
+                  Reiniciar 0
                 </span>
               </button>
             </div>
           </div>
-        </section>
+          </section>
+        </div>
       )}
 
       {/* PANEL DE OPERACIONES: GESTIÓN & FINANZAS */}
@@ -411,11 +541,20 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
             {/* 2 KPI Cards */}
             <div className="grid grid-cols-2 gap-3">
               {/* Cobrado mes */}
-              <div className="atelier-card rounded-2xl p-4 relative overflow-hidden">
+              <div
+                onClick={() => {
+                  setEditCobradoInput(String(cobradoMes));
+                  setEditPercibirInput(String(porPercibir));
+                  setShowEditKpiModal(true);
+                }}
+                className="atelier-card rounded-2xl p-4 relative overflow-hidden cursor-pointer hover:border-[#ffb59b]/40 transition-colors group"
+                title="Tocar para editar Cobrado Mes"
+              >
                 <div className="w-16 h-14 rounded-tl-xl bg-[#4a3b36]/40 absolute bottom-0 right-0 pointer-events-none" />
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#c8c6c5]">
-                    Cobrado mes
+                  <span className="text-xs font-semibold text-[#c8c6c5] flex items-center gap-1.5">
+                    <span>Cobrado mes</span>
+                    <Pencil className="w-2.5 h-2.5 text-[#ffb59b] opacity-60 group-hover:opacity-100" />
                   </span>
                   <div className="w-7 h-7 rounded-full bg-[#252727] flex items-center justify-center">
                     <TrendingUp className="w-3.5 h-3.5 text-[#ffb59b]" />
@@ -423,7 +562,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 </div>
                 <div className="mt-2.5 flex items-baseline gap-1 tabular-nums">
                   <span className="text-2xl font-bold font-display text-white">
-                    $1.840K
+                    ${(cobradoMes / 1000).toLocaleString('es-AR')}K
                   </span>
                   <span className="text-xs font-semibold text-[#a1a1a1]">
                     ARS
@@ -431,16 +570,25 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 </div>
                 <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-[#ffb59b] relative z-10">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>92% meta mensual</span>
+                  <span>{formatARS(cobradoMes)}</span>
                 </div>
               </div>
 
               {/* Por percibir */}
-              <div className="atelier-card rounded-2xl p-4 relative overflow-hidden">
+              <div
+                onClick={() => {
+                  setEditCobradoInput(String(cobradoMes));
+                  setEditPercibirInput(String(porPercibir));
+                  setShowEditKpiModal(true);
+                }}
+                className="atelier-card rounded-2xl p-4 relative overflow-hidden cursor-pointer hover:border-white/20 transition-colors group"
+                title="Tocar para editar Por Percibir"
+              >
                 <div className="w-16 h-14 rounded-tl-xl bg-[#474746]/40 absolute bottom-0 right-0 pointer-events-none" />
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#c8c6c5]">
-                    Por percibir
+                  <span className="text-xs font-semibold text-[#c8c6c5] flex items-center gap-1.5">
+                    <span>Por percibir</span>
+                    <Pencil className="w-2.5 h-2.5 text-[#c8c6c5] opacity-60 group-hover:opacity-100" />
                   </span>
                   <div className="w-7 h-7 rounded-full bg-[#252727] flex items-center justify-center">
                     <Clock className="w-3.5 h-3.5 text-[#c8c6c5]" />
@@ -448,7 +596,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 </div>
                 <div className="mt-2.5 flex items-baseline gap-1 tabular-nums">
                   <span className="text-2xl font-bold font-display text-white">
-                    $620K
+                    ${(porPercibir / 1000).toLocaleString('es-AR')}K
                   </span>
                   <span className="text-xs font-semibold text-[#a1a1a1]">
                     ARS
@@ -456,7 +604,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 </div>
                 <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-[#c8c6c5] relative z-10">
                   <Hourglass className="w-3.5 h-3.5 shrink-0" />
-                  <span>3 órdenes pendientes</span>
+                  <span>{formatARS(porPercibir)}</span>
                 </div>
               </div>
             </div>
@@ -608,7 +756,20 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
 
               {/* Orders List */}
               <div className="space-y-3">
-                {filteredOrders.map((order, idx) => {
+                {filteredOrders.length === 0 ? (
+                  <div className="atelier-card rounded-2xl p-6 text-center space-y-2.5">
+                    <div className="w-11 h-11 mx-auto rounded-full bg-[#271e1a] border border-[#e87a50]/40 flex items-center justify-center text-[#ffb59b]">
+                      <Package className="w-5 h-5" />
+                    </div>
+                    <div className="text-sm font-bold text-white">
+                      Cola de Pedidos en 0
+                    </div>
+                    <p className="text-xs text-[#c8c6c5]">
+                      No hay ningún pedido cargado en la cola de producción.
+                    </p>
+                  </div>
+                ) : (
+                  filteredOrders.map((order, idx) => {
                   const isDetailed = idx === 0 || order.featured;
 
                   if (!isDetailed) {
@@ -637,8 +798,18 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="bg-[#232525] border border-white/10 text-[#c8c6c5] text-[11px] font-semibold px-3 py-1 rounded-full">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditOrderModal(order);
+                            }}
+                            title="Editar pedido completo"
+                            className="w-7 h-7 rounded-full bg-[#2a2c2c] hover:bg-[#e87a50] hover:text-[#121414] flex items-center justify-center text-[#c8c6c5] transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <span className="bg-[#232525] border border-white/10 text-[#c8c6c5] text-[11px] font-semibold px-2.5 py-1 rounded-full">
                             {order.stage === 'proceso'
                               ? 'En Proceso'
                               : order.stage === 'terminado'
@@ -759,11 +930,18 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
 
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => onSelectOrderForFreight(order.id)}
-                            title="Cotizar flete para esta orden"
-                            className="w-8 h-8 rounded-full bg-[#232525] hover:bg-[#2e3131] flex items-center justify-center text-[#c8c6c5] hover:text-white transition-colors cursor-pointer"
+                            onClick={() => openEditOrderModal(order)}
+                            title="Editar pedido completo (cliente, entrega, medidas, precio)"
+                            className="w-8 h-8 rounded-full bg-[#232525] hover:bg-[#e87a50] hover:text-[#121414] flex items-center justify-center text-[#c8c6c5] transition-colors cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onSelectOrderForFreight(order.id)}
+                            title="Cotizar flete y logística para este encargo"
+                            className="w-8 h-8 rounded-full bg-[#232525] hover:bg-[#2e3131] flex items-center justify-center text-[#ffb59b] hover:text-white transition-colors cursor-pointer"
+                          >
+                            <Truck className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => onDeleteOrder(order.id)}
@@ -855,7 +1033,8 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                       </div>
                     </div>
                   );
-                })}
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -901,16 +1080,27 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 </div>
 
                 <span className="bg-[#332019] text-[#ffb59b] text-xs font-bold px-2.5 py-1 rounded-full tabular-nums">
-                  ↑ +356.1%
+                  {totalCaja === 0 ? '0.0%' : '↑ +356.1%'}
                 </span>
               </div>
 
               {/* 2 Sub-Cards: Efectivo & Bancos */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="atelier-subcard rounded-xl p-3">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[#c8c6c5]">
-                    <Banknote className="w-3.5 h-3.5 text-[#c8c6c5]" />
-                    <span>Efectivo en Mano</span>
+                <div
+                  onClick={() => {
+                    setEditEfectivoInput(String(cashEfectivo));
+                    setEditBancosInput(String(cashBancos));
+                    setShowEditCashBalancesModal(true);
+                  }}
+                  className="atelier-subcard rounded-xl p-3 cursor-pointer hover:border-[#ffb59b]/40 transition-colors group"
+                  title="Tocar para ajustar saldo en efectivo"
+                >
+                  <div className="flex items-center justify-between text-xs font-semibold text-[#c8c6c5]">
+                    <div className="flex items-center gap-1.5">
+                      <Banknote className="w-3.5 h-3.5 text-[#c8c6c5]" />
+                      <span>Efectivo en Mano</span>
+                    </div>
+                    <Pencil className="w-2.5 h-2.5 text-[#ffb59b] opacity-50 group-hover:opacity-100" />
                   </div>
                   <div className="text-base font-bold font-display text-white mt-1.5 tabular-nums">
                     {formatARS(cashEfectivo)}
@@ -920,10 +1110,21 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                   </div>
                 </div>
 
-                <div className="atelier-subcard rounded-xl p-3">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[#c8c6c5]">
-                    <Landmark className="w-3.5 h-3.5 text-[#c8c6c5]" />
-                    <span>Bancos &amp; MP</span>
+                <div
+                  onClick={() => {
+                    setEditEfectivoInput(String(cashEfectivo));
+                    setEditBancosInput(String(cashBancos));
+                    setShowEditCashBalancesModal(true);
+                  }}
+                  className="atelier-subcard rounded-xl p-3 cursor-pointer hover:border-[#ffb59b]/40 transition-colors group"
+                  title="Tocar para ajustar saldo en bancos"
+                >
+                  <div className="flex items-center justify-between text-xs font-semibold text-[#c8c6c5]">
+                    <div className="flex items-center gap-1.5">
+                      <Landmark className="w-3.5 h-3.5 text-[#c8c6c5]" />
+                      <span>Bancos &amp; MP</span>
+                    </div>
+                    <Pencil className="w-2.5 h-2.5 text-[#ffb59b] opacity-50 group-hover:opacity-100" />
                   </div>
                   <div className="text-base font-bold font-display text-white mt-1.5 tabular-nums">
                     {formatARS(cashBancos)}
@@ -943,7 +1144,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 <span>+ Registrar Movimiento</span>
               </button>
 
-              {/* Cierre de Caja & Reiniciar Caja */}
+              {/* Cierre de Caja & Reiniciar Saldo Neto de la Caja */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => {
@@ -961,11 +1162,11 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 </button>
 
                 <button
-                  onClick={onResetCash}
-                  className="h-11 rounded-xl bg-[#202222] hover:bg-[#292a2a] border border-white/5 text-[#e3e2e2] font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  onClick={() => setShowConfirmResetModal(true)}
+                  className="h-11 rounded-xl bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/60 text-[#ffb59b] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-[#c8c6c5]" />
-                  <span>Reiniciar Caja</span>
+                  <RotateCcw className="w-3.5 h-3.5 text-[#e87a50]" />
+                  <span>Reiniciar Saldo Neto</span>
                 </button>
               </div>
             </div>
@@ -1096,6 +1297,315 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal: Editar Pedido Completo */}
+      {showEditOrderModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="atelier-card rounded-2xl max-w-md w-full p-5 space-y-4 border border-white/15 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold font-display text-white">
+                Editar Pedido / Encargo
+              </h3>
+              <button
+                onClick={() => setShowEditOrderModal(false)}
+                className="p-1 text-[#a1a1a1] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOrderEdit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Cliente / Estudio
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editClient}
+                  onChange={(e) => setEditClient(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                    Fecha de Entrega
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editDelivery}
+                    onChange={(e) => setEditDelivery(e.target.value)}
+                    className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                    Monto Total (ARS)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={editTotal}
+                    onChange={(e) => setEditTotal(e.target.value)}
+                    className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white tabular-nums font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Ubicación de Destino
+                </label>
+                <input
+                  type="text"
+                  value={editLocation}
+                  onChange={(e) => setEditLocation(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Mobiliario / Piezas
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editItems}
+                  onChange={(e) => setEditItems(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Especificación de Material
+                </label>
+                <input
+                  type="text"
+                  value={editMaterial}
+                  onChange={(e) => setEditMaterial(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditOrderModal(false)}
+                  className="px-4 py-2 rounded-xl bg-[#222424] text-xs font-semibold text-[#c8c6c5] cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#e87a50] text-[#121414] text-xs font-bold cursor-pointer"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar KPIs (Cobrado Mes & Por Percibir) */}
+      {showEditKpiModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="atelier-card rounded-2xl max-w-sm w-full p-5 space-y-4 border border-white/15">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold font-display text-white">
+                Editar Métricas del Taller
+              </h3>
+              <button
+                onClick={() => setShowEditKpiModal(false)}
+                className="p-1 text-[#a1a1a1] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Cobrado en el Mes (ARS)
+                </label>
+                <input
+                  type="number"
+                  value={editCobradoInput}
+                  onChange={(e) => setEditCobradoInput(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white tabular-nums"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Por Percibir / Pendiente (ARS)
+                </label>
+                <input
+                  type="number"
+                  value={editPercibirInput}
+                  onChange={(e) => setEditPercibirInput(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white tabular-nums"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditKpiModal(false)}
+                  className="px-4 py-2 rounded-xl bg-[#222424] text-xs font-semibold text-[#c8c6c5] cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const c = parseInt(editCobradoInput.replace(/\D/g, ''), 10) || 0;
+                    const p = parseInt(editPercibirInput.replace(/\D/g, ''), 10) || 0;
+                    if (onUpdateCobradoMes) onUpdateCobradoMes(c);
+                    if (onUpdatePorPercibir) onUpdatePorPercibir(p);
+                    setShowEditKpiModal(false);
+                    onShowToast('Métricas de taller actualizadas');
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#e87a50] text-[#121414] text-xs font-bold cursor-pointer"
+                >
+                  Guardar Métricas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Saldos de Caja Directos */}
+      {showEditCashBalancesModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="atelier-card rounded-2xl max-w-sm w-full p-5 space-y-4 border border-white/15">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold font-display text-white">
+                Ajustar Saldos de Caja
+              </h3>
+              <button
+                onClick={() => setShowEditCashBalancesModal(false)}
+                className="p-1 text-[#a1a1a1] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Efectivo en Mano (ARS)
+                </label>
+                <input
+                  type="number"
+                  value={editEfectivoInput}
+                  onChange={(e) => setEditEfectivoInput(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white tabular-nums"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Bancos &amp; MercadoPago (ARS)
+                </label>
+                <input
+                  type="number"
+                  value={editBancosInput}
+                  onChange={(e) => setEditBancosInput(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white tabular-nums"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditCashBalancesModal(false)}
+                  className="px-4 py-2 rounded-xl bg-[#222424] text-xs font-semibold text-[#c8c6c5] cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ef = parseInt(editEfectivoInput.replace(/\D/g, ''), 10) || 0;
+                    const ba = parseInt(editBancosInput.replace(/\D/g, ''), 10) || 0;
+                    if (onUpdateCashBalances) {
+                      onUpdateCashBalances(ef, ba);
+                    }
+                    setShowEditCashBalancesModal(false);
+                    onShowToast(`Saldos de caja actualizados (${formatARS(ef + ba)})`);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#ffb59b] text-[#380d00] text-xs font-bold cursor-pointer"
+                >
+                  Guardar Saldos
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pop-up de Confirmación para Reiniciar Todo el Saldo Neto de la Caja y la Ventana a 0 */}
+      {showConfirmResetModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="atelier-card rounded-2xl max-w-sm w-full p-5 space-y-4 border border-[#e87a50]/60 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#3d2020] border border-[#ffb4ab]/40 flex items-center justify-center text-[#ffb4ab] shrink-0">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold font-display text-white leading-tight">
+                  ¿Confirmar Reinicio Total a 0?
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowConfirmResetModal(false)}
+                className="p-1 text-[#a1a1a1] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-[#1b1d1d] border border-white/10 rounded-xl p-3.5 space-y-1.5 text-xs text-[#d8d6d5]">
+              <p className="font-semibold text-[#ffb59b]">
+                Al confirmar con el botón de abajo, toda la ventana volverá a 0 absoluto:
+              </p>
+              <ul className="space-y-1 text-[11px] text-[#c8c6c5] list-disc pl-4">
+                <li>Saldo Neto Total en Caja (Efectivo y Bancos): $0 ARS</li>
+                <li>Cola de Pedidos: 0 pedidos cargados</li>
+                <li>Cobrado mes y Por percibir: $0 ARS</li>
+                <li>Meta de Fabricación y Simulador: $0 ARS (0%)</li>
+              </ul>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowConfirmResetModal(false)}
+                className="h-11 rounded-xl bg-[#222424] hover:bg-[#2c2e2e] text-xs font-bold text-[#c8c6c5] cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onResetCash();
+                  setShowConfirmResetModal(false);
+                }}
+                className="h-11 rounded-xl bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Confirmar Reinicio a 0</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

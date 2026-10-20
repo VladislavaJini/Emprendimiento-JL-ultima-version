@@ -87,36 +87,154 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
+  // Helper to load/save in localStorage with fallback
+  const getStored = <T,>(key: string, fallback: T): T => {
+    try {
+      const item = localStorage.getItem(key);
+      if (item) return JSON.parse(item);
+    } catch {
+      // Fallback on error
+    }
+    return fallback;
+  };
+
   // State: Guillotina 2D (Melamina 18mm)
-  const [boards, setBoards] = useState<MelaminaBoard[]>(INITIAL_BOARDS);
-  const [selectedBoardId, setSelectedBoardId] = useState<string>('carvalho-mezzo');
-  const [cutPieces, setCutPieces] = useState<CutPiece[]>(INITIAL_CUT_PIECES);
+  const [boards, setBoards] = useState<MelaminaBoard[]>(() =>
+    getStored('mjl_boards', INITIAL_BOARDS)
+  );
+  const [selectedBoardId, setSelectedBoardId] = useState<string>(() =>
+    getStored('mjl_selected_board_id', 'carvalho-mezzo')
+  );
+  const [cutPieces, setCutPieces] = useState<CutPiece[]>(() =>
+    getStored('mjl_cut_pieces', INITIAL_CUT_PIECES)
+  );
 
   // State: Cortes Fondo (Placas de Fondo 3mm / 5.5mm)
-  const [fondoBoards, setFondoBoards] = useState<MelaminaBoard[]>(INITIAL_FONDO_BOARDS);
-  const [selectedFondoBoardId, setSelectedFondoBoardId] = useState<string>('fondo-blanco-plus');
-  const [fondoCutPieces, setFondoCutPieces] = useState<CutPiece[]>(INITIAL_FONDO_PIECES);
+  const [fondoBoards, setFondoBoards] = useState<MelaminaBoard[]>(() =>
+    getStored('mjl_fondo_boards', INITIAL_FONDO_BOARDS)
+  );
+  const [selectedFondoBoardId, setSelectedFondoBoardId] = useState<string>(() =>
+    getStored('mjl_selected_fondo_board_id', 'fondo-blanco-plus')
+  );
+  const [fondoCutPieces, setFondoCutPieces] = useState<CutPiece[]>(() =>
+    getStored('mjl_fondo_cut_pieces', INITIAL_FONDO_PIECES)
+  );
 
   // State: Calculador de Filo (Tapacantos)
-  const [edgeRolls, setEdgeRolls] = useState<EdgeBandingRoll[]>(INITIAL_EDGE_ROLLS);
-  const [selectedEdgeRollId, setSelectedEdgeRollId] = useState<string>('filo-carvalho-10m');
-  const [edgePieces, setEdgePieces] = useState<EdgeBandingPiece[]>(INITIAL_EDGE_PIECES);
+  const [edgeRolls, setEdgeRolls] = useState<EdgeBandingRoll[]>(() =>
+    getStored('mjl_edge_rolls', INITIAL_EDGE_ROLLS)
+  );
+  const [selectedEdgeRollId, setSelectedEdgeRollId] = useState<string>(() =>
+    getStored('mjl_selected_edge_roll_id', 'filo-carvalho-10m')
+  );
+  const [edgePieces, setEdgePieces] = useState<EdgeBandingPiece[]>(() =>
+    getStored('mjl_edge_pieces', INITIAL_EDGE_PIECES)
+  );
 
   // State: Inventario de Taller (Herrajes, Piezas Cortadas, Materiales)
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(
-    INITIAL_INVENTORY_ITEMS
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(() =>
+    getStored('mjl_inventory_items', INITIAL_INVENTORY_ITEMS)
   );
 
   // State: Operaciones & Pedidos
-  const [orders, setOrders] = useState<WorkshopOrder[]>(INITIAL_ORDERS);
-  const [selectedFreightOrderId, setSelectedFreightOrderId] = useState<string>('ped-1084');
-  const [cashEfectivo, setCashEfectivo] = useState<number>(182500);
-  const [cashBancos, setCashBancos] = useState<number>(501700);
-  const [movements, setMovements] = useState<CashMovement[]>(INITIAL_CASH_MOVEMENTS);
+  const [orders, setOrders] = useState<WorkshopOrder[]>(() =>
+    getStored('mjl_orders', INITIAL_ORDERS)
+  );
+  const [selectedFreightOrderId, setSelectedFreightOrderId] = useState<string>(
+    'ped-1084'
+  );
+  const [cashEfectivo, setCashEfectivo] = useState<number>(() =>
+    getStored('mjl_cash_efectivo', 182500)
+  );
+  const [cashBancos, setCashBancos] = useState<number>(() =>
+    getStored('mjl_cash_bancos', 501700)
+  );
+  const [movements, setMovements] = useState<CashMovement[]>(() =>
+    getStored('mjl_cash_movements', INITIAL_CASH_MOVEMENTS)
+  );
+
+  // KPI & Gamificación states
+  const [cobradoMes, setCobradoMes] = useState<number>(() =>
+    getStored('mjl_cobrado_mes', 1840000)
+  );
+  const [porPercibir, setPorPercibir] = useState<number>(() =>
+    getStored('mjl_por_percibir', 620000)
+  );
+  const [metaMensual, setMetaMensual] = useState<number>(() =>
+    getStored('mjl_meta_mensual', 2000000)
+  );
+  const [extraBillingArs, setExtraBillingArs] = useState<number>(() =>
+    getStored('mjl_extra_billing', 0)
+  );
 
   // State: Catálogo & CAD 3D
-  const [designs, setDesigns] = useState<FurnitureDesign[]>(INITIAL_DESIGNS);
+  const [designs, setDesigns] = useState<FurnitureDesign[]>(() =>
+    getStored('mjl_designs', INITIAL_DESIGNS)
+  );
   const [activeDesignIndex, setActiveDesignIndex] = useState<number>(0);
+
+  // Automatic localStorage sync
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_cut_pieces', JSON.stringify(cutPieces));
+    } catch {}
+  }, [cutPieces]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_boards', JSON.stringify(boards));
+    } catch {}
+  }, [boards]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_selected_board_id', JSON.stringify(selectedBoardId));
+    } catch {}
+  }, [selectedBoardId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_fondo_cut_pieces', JSON.stringify(fondoCutPieces));
+      localStorage.setItem('mjl_fondo_boards', JSON.stringify(fondoBoards));
+    } catch {}
+  }, [fondoCutPieces, fondoBoards]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_edge_rolls', JSON.stringify(edgeRolls));
+      localStorage.setItem('mjl_edge_pieces', JSON.stringify(edgePieces));
+    } catch {}
+  }, [edgeRolls, edgePieces]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_inventory_items', JSON.stringify(inventoryItems));
+    } catch {}
+  }, [inventoryItems]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_orders', JSON.stringify(orders));
+    } catch {}
+  }, [orders]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_cash_efectivo', JSON.stringify(cashEfectivo));
+      localStorage.setItem('mjl_cash_bancos', JSON.stringify(cashBancos));
+      localStorage.setItem('mjl_cash_movements', JSON.stringify(movements));
+      localStorage.setItem('mjl_cobrado_mes', JSON.stringify(cobradoMes));
+      localStorage.setItem('mjl_por_percibir', JSON.stringify(porPercibir));
+      localStorage.setItem('mjl_meta_mensual', JSON.stringify(metaMensual));
+      localStorage.setItem('mjl_extra_billing', JSON.stringify(extraBillingArs));
+    } catch {}
+  }, [cashEfectivo, cashBancos, movements, cobradoMes, porPercibir, metaMensual, extraBillingArs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mjl_designs', JSON.stringify(designs));
+    } catch {}
+  }, [designs]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -163,6 +281,25 @@ export default function App() {
     );
   };
 
+  const handleUpdatePieceDetails = (
+    pieceId: string,
+    updated: Partial<CutPiece>
+  ) => {
+    setCutPieces((prev) =>
+      prev.map((p) => (p.id === pieceId ? { ...p, ...updated } : p))
+    );
+  };
+
+  const handleDeletePiece = (pieceId: string) => {
+    setCutPieces((prev) => prev.filter((p) => p.id !== pieceId));
+    showToast('Corte eliminado de la guillotina');
+  };
+
+  const handleClearAllCuts = () => {
+    setCutPieces([]);
+    showToast('Guillotina en 0 absoluto: 0 cortes, simulador y eficiencia en 0%');
+  };
+
   const handleTogglePieceRotation = (pieceId: string) => {
     setCutPieces((prev) =>
       prev.map((p) =>
@@ -195,9 +332,8 @@ export default function App() {
   };
 
   const handleResetCleanOrder = () => {
-    setCutPieces(INITIAL_CUT_PIECES);
-    setSelectedBoardId('carvalho-mezzo');
-    showToast('Orden reiniciada con placa Carvalho Mezzo 2750×1830mm limpia');
+    setCutPieces([]);
+    showToast('Guillotina reiniciada en 0 absoluto: 0 cortes, simulador y eficiencia en 0%');
   };
 
   // Handlers for Cortes Fondo (Placas de Fondo)
@@ -232,10 +368,6 @@ export default function App() {
   };
 
   const handleDeleteFondoPiece = (pieceId: string) => {
-    if (fondoCutPieces.length <= 1) {
-      showToast('Debe permanecer al menos 1 corte de fondo en la lista');
-      return;
-    }
     setFondoCutPieces((prev) => prev.filter((p) => p.id !== pieceId));
     showToast('Corte de fondo eliminado');
   };
@@ -274,9 +406,8 @@ export default function App() {
   };
 
   const handleResetCleanFondoOrder = () => {
-    setFondoCutPieces(INITIAL_FONDO_PIECES);
-    setSelectedFondoBoardId('fondo-blanco-plus');
-    showToast('Orden de Fondo Blanco Plus 3mm reiniciada');
+    setFondoCutPieces([]);
+    showToast('Cortes de fondo reiniciados en 0 absoluto: 0 cortes, simulador y eficiencia en 0%');
   };
 
   // Handlers for Calculador de Filo
@@ -322,12 +453,13 @@ export default function App() {
   };
 
   const handleDeleteEdgePiece = (id: string) => {
-    if (edgePieces.length <= 1) {
-      showToast('Debe permanecer al menos 1 pieza en el cálculo');
-      return;
-    }
     setEdgePieces((prev) => prev.filter((p) => p.id !== id));
     showToast('Pieza removida del cálculo de filo');
+  };
+
+  const handleResetEdgePieces = () => {
+    setEdgePieces([]);
+    showToast('Calculador de filo reiniciado en 0 absoluto: sin piezas cargadas');
   };
 
   // Handlers for Inventario de Taller
@@ -364,15 +496,18 @@ export default function App() {
   };
 
   const handleDeleteInventoryItem = (id: string) => {
-    if (inventoryItems.length <= 1) {
-      showToast('El inventario debe conservar al menos 1 ítem');
-      return;
-    }
     setInventoryItems((prev) => prev.filter((it) => it.id !== id));
     showToast('Objeto eliminado del Inventario de Taller');
   };
 
   // Handlers for Orders & Cash
+  const handleUpdateOrder = (orderId: string, updated: Partial<WorkshopOrder>) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o))
+    );
+    showToast('Pedido actualizado');
+  };
+
   const handleUpdateOrderStage = (orderId: string, stage: OrderStage) => {
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, stage } : o))
@@ -385,10 +520,6 @@ export default function App() {
   };
 
   const handleDeleteOrder = (orderId: string) => {
-    if (orders.length <= 1) {
-      showToast('Debe permanecer al menos 1 orden activa en cola');
-      return;
-    }
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
     showToast('Orden eliminada de la cola de producción');
   };
@@ -419,9 +550,14 @@ export default function App() {
   };
 
   const handleResetCash = () => {
-    setCashEfectivo(182500);
-    setCashBancos(501700);
-    showToast('Arqueo de caja restaurado a valores iniciales de turno ($684.200 ARS)');
+    setCashEfectivo(0);
+    setCashBancos(0);
+    setMovements([]);
+    setOrders([]);
+    setCobradoMes(0);
+    setPorPercibir(0);
+    setExtraBillingArs(0);
+    showToast('Todo reiniciado a 0 absoluto: Caja $0, 0 pedidos, Cobrado $0 y Por percibir $0');
   };
 
   // Handlers for Catalog & CAD
@@ -463,7 +599,6 @@ export default function App() {
     setDesigns((prev) =>
       prev.map((d) => {
         if (d.id !== designId) return d;
-        if (d.bomItems.length <= 1) return d;
         return {
           ...d,
           bomItems: d.bomItems.filter((i) => i.id !== bomId),
@@ -512,8 +647,23 @@ export default function App() {
     });
   };
 
-  const activeFreightOrder =
-    orders.find((o) => o.id === selectedFreightOrderId) || orders[0];
+  const activeFreightOrder: WorkshopOrder =
+    orders.find((o) => o.id === selectedFreightOrderId) ||
+    orders[0] || {
+      id: 'ped-empty',
+      code: 'SIN-PEDIDO',
+      deliveryDate: 'Sin fecha',
+      clientName: 'Sin pedido activo en cola',
+      location: 'Villa Luzuriaga • 0 km',
+      distanceKm: 8.4,
+      itemsSummary: 'Sin muebles cargados',
+      materialSpec: 'Melamina 18mm',
+      totalArs: 0,
+      stage: 'proceso',
+      packagesCount: 0,
+      packagingSpec: '0 bultos en cola',
+      address: 'Av. de Mayo 850, Ramos Mejía',
+    };
   const activeDesign =
     designs[activeDesignIndex % Math.max(1, designs.length)] || designs[0];
 
@@ -640,6 +790,9 @@ export default function App() {
               onUpdateBoardCost={handleUpdateBoardCost}
               cutPieces={cutPieces}
               onUpdatePieceQty={handleUpdatePieceQty}
+              onUpdatePieceDetails={handleUpdatePieceDetails}
+              onDeletePiece={handleDeletePiece}
+              onClearAllCuts={handleClearAllCuts}
               onTogglePieceRotation={handleTogglePieceRotation}
               onAddCutPiece={handleAddCutPiece}
               onResetCleanOrder={handleResetCleanOrder}
@@ -677,6 +830,7 @@ export default function App() {
               onAddPiece={handleAddEdgePiece}
               onUpdatePiece={handleUpdateEdgePiece}
               onDeletePiece={handleDeleteEdgePiece}
+              onResetPieces={handleResetEdgePieces}
               onShowToast={showToast}
             />
           )}
@@ -697,6 +851,7 @@ export default function App() {
               showGamificacion={false}
               orders={orders}
               onUpdateOrderStage={handleUpdateOrderStage}
+              onUpdateOrder={handleUpdateOrder}
               onAddOrder={handleAddOrder}
               onDeleteOrder={handleDeleteOrder}
               onSelectOrderForFreight={(orderId) => {
@@ -705,6 +860,16 @@ export default function App() {
               }}
               cashEfectivo={cashEfectivo}
               cashBancos={cashBancos}
+              onUpdateCashBalances={(efectivo, bancos) => {
+                setCashEfectivo(efectivo);
+                setCashBancos(bancos);
+              }}
+              cobradoMes={cobradoMes}
+              onUpdateCobradoMes={setCobradoMes}
+              porPercibir={porPercibir}
+              onUpdatePorPercibir={setPorPercibir}
+              extraBillingArs={extraBillingArs}
+              onUpdateExtraBillingArs={setExtraBillingArs}
               movements={movements}
               onAddCashMovement={handleAddCashMovement}
               onResetCash={handleResetCash}
@@ -717,6 +882,7 @@ export default function App() {
               showGamificacion={true}
               orders={orders}
               onUpdateOrderStage={handleUpdateOrderStage}
+              onUpdateOrder={handleUpdateOrder}
               onAddOrder={handleAddOrder}
               onDeleteOrder={handleDeleteOrder}
               onSelectOrderForFreight={(orderId) => {
@@ -725,6 +891,16 @@ export default function App() {
               }}
               cashEfectivo={cashEfectivo}
               cashBancos={cashBancos}
+              onUpdateCashBalances={(efectivo, bancos) => {
+                setCashEfectivo(efectivo);
+                setCashBancos(bancos);
+              }}
+              cobradoMes={cobradoMes}
+              onUpdateCobradoMes={setCobradoMes}
+              porPercibir={porPercibir}
+              onUpdatePorPercibir={setPorPercibir}
+              extraBillingArs={extraBillingArs}
+              onUpdateExtraBillingArs={setExtraBillingArs}
               movements={movements}
               onAddCashMovement={handleAddCashMovement}
               onResetCash={handleResetCash}

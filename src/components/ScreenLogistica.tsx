@@ -465,15 +465,26 @@ export const ScreenLogistica: React.FC<ScreenLogisticaProps> = ({
               </button>
             </div>
 
-            {/* Ver en Maps & Copiar Detalle */}
+            {/* Abrir Google Maps & Copiar Detalle */}
             <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setShowMapsPreview((prev) => !prev)}
-                className="h-11 rounded-xl bg-[#181a1a] hover:bg-[#222424] border border-white/10 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+                  'Garibaldi y Triunvirato, Villa Luzuriaga, Buenos Aires'
+                )}&destination=${encodeURIComponent(
+                  destinationAddress || 'Ramos Mejía, Buenos Aires'
+                )}&travelmode=driving`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() =>
+                  onShowToast(
+                    `Abriendo ruta hacia ${destinationAddress} en Google Maps...`
+                  )
+                }
+                className="h-11 rounded-xl bg-[#271e1a] hover:bg-[#332620] border border-[#e87a50]/60 text-[#ffb59b] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer no-underline"
               >
-                <Map className="w-4 h-4 text-[#ffb59b]" />
-                <span>Ver en Maps</span>
-              </button>
+                <Map className="w-4 h-4 text-[#e87a50] shrink-0" />
+                <span>Abrir Google Maps</span>
+              </a>
 
               <button
                 onClick={handleCopyDetail}

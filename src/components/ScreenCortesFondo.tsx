@@ -13,6 +13,7 @@ import {
   Maximize2,
   Tag,
   RotateCw,
+  RotateCcw,
   Check,
   Minus,
   Plus,
@@ -110,19 +111,35 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
     0
   );
 
-  const usedAreaM2 = Math.min(boardAreaM2, Number(rawCutAreaM2.toFixed(2)));
-  const wasteAreaM2 = Number(Math.max(0, boardAreaM2 - usedAreaM2).toFixed(2));
-  const efficiencyPct = Number(
-    Math.min(98.5, (usedAreaM2 / Math.max(0.1, boardAreaM2)) * 100).toFixed(1)
-  );
-  const restPct = Number((100 - efficiencyPct).toFixed(1));
-  const cutValueArs = Math.round((efficiencyPct / 100) * activeBoard.costArs);
+  const usedAreaM2 =
+    cutPieces.length === 0
+      ? 0
+      : Math.min(boardAreaM2, Number(rawCutAreaM2.toFixed(2)));
+  const wasteAreaM2 =
+    cutPieces.length === 0
+      ? 0
+      : Number(Math.max(0, boardAreaM2 - usedAreaM2).toFixed(2));
+  const efficiencyPct =
+    cutPieces.length === 0
+      ? 0
+      : Number(
+          Math.min(98.5, (usedAreaM2 / Math.max(0.1, boardAreaM2)) * 100).toFixed(1)
+        );
+  const restPct =
+    cutPieces.length === 0 ? 0 : Number((100 - efficiencyPct).toFixed(1));
+  const cutValueArs =
+    cutPieces.length === 0
+      ? 0
+      : Math.round((efficiencyPct / 100) * activeBoard.costArs);
 
   const totalSegments = 7;
-  const activeSegments = Math.max(
-    1,
-    Math.min(7, Math.round((efficiencyPct / 100) * totalSegments))
-  );
+  const activeSegments =
+    cutPieces.length === 0 || efficiencyPct <= 0
+      ? 0
+      : Math.max(
+          1,
+          Math.min(7, Math.round((efficiencyPct / 100) * totalSegments))
+        );
 
   const openEditBoard = () => {
     setEditBoardName(activeBoard.name);
@@ -253,12 +270,15 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
       {/* Top Action Row */}
       <div className="grid grid-cols-12 gap-2.5">
         <button
-          onClick={onResetCleanOrder}
+          onClick={() => {
+            setSelectedCadPiece(null);
+            onResetCleanOrder();
+          }}
           className="col-span-7 flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#271e1a] hover:bg-[#332620] border border-[#4d352b] text-[#f2ded7] text-xs font-semibold transition-colors cursor-pointer"
         >
-          <PlusSquare className="w-4 h-4 text-[#ffb59b] shrink-0" />
+          <RotateCcw className="w-4 h-4 text-[#ffb59b] shrink-0" />
           <span className="leading-tight text-center">
-            Nueva Orden (Fondo Limpio)
+            Reiniciar Todo en 0 (Fondo Limpio)
           </span>
         </button>
 
@@ -373,6 +393,16 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
                 className="p-1.5 rounded-lg bg-[#292a2a] hover:bg-[#e87a50] hover:text-[#121414] transition-colors cursor-pointer"
               >
                 <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedCadPiece(null);
+                  onResetCleanOrder();
+                }}
+                title="Reiniciar todos los cortes de fondo a 0"
+                className="p-1.5 rounded-lg bg-[#292a2a] hover:bg-[#3d2020] hover:text-[#ffb4ab] transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setShowBoardMenu((prev) => !prev)}
@@ -595,7 +625,7 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
               {totalPiecesCount} uds
             </div>
             <div className="text-[11px] text-[#c8c6c5] mt-0.5">
-              Retazo reutilizable
+              {cutPieces.length === 0 ? '0 retazos (en 0)' : 'Retazo reutilizable'}
             </div>
           </div>
         </div>
@@ -646,105 +676,79 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
               cadZoom ? 'scale-110 origin-top-left' : 'scale-100'
             }`}
           >
-            {/* Piece 1: #1 FONDO CÓMODA 4C */}
-            <div
-              onClick={() =>
-                setSelectedCadPiece('#1 Fondo Trasero Cómoda 4C • 1164 × 784 mm')
-              }
-              className="absolute top-[2%] left-[1.5%] w-[42.5%] h-[43%] bg-[#ffdbcf] border-2 border-[#e87a50] flex flex-col items-center justify-center text-center p-1 cursor-pointer hover:brightness-105 transition-all"
-            >
-              {showLabelsOnCad && (
-                <>
-                  <span className="text-[9px] font-extrabold text-[#380d00] leading-tight">
-                    #1 FONDO CÓMODA 4C
-                  </span>
-                  <span className="text-[8px] font-bold text-[#7e2b06] tabular-nums">
-                    1164 × 784 mm (3mm)
-                  </span>
-                </>
-              )}
-            </div>
+            {/* EMPTY BOARD STATE */}
+            {cutPieces.length === 0 && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#ffb59b] mb-2">
+                  <RotateCcw className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-bold text-white">
+                  Simulador de Fondo en 0 ({activeBoard.widthMm} × {activeBoard.heightMm} mm)
+                </span>
+                <span className="text-xs text-[#c8c6c5] mt-1">
+                  0% Eficiencia • Sin ningún corte de fondo cargado
+                </span>
+              </div>
+            )}
 
-            {/* Pieces 2 & 3: FONDOS MESITA NÓRDICA */}
-            <div
-              onClick={() =>
-                setSelectedCadPiece('#2 Fondo Mesita Nórdica V1 • 414 × 514 mm')
-              }
-              className="absolute top-[47%] left-[1.5%] w-[20.5%] h-[49%] bg-[#f5f5f3] border border-[#343535] flex flex-col items-center justify-center text-center p-1 cursor-pointer hover:bg-white transition-all"
-            >
-              {showLabelsOnCad && (
-                <>
-                  <span className="text-[8px] font-extrabold text-[#121414] leading-tight">
-                    #2 FONDO MESITA
-                  </span>
-                  <span className="text-[7px] font-bold text-[#303031] tabular-nums">
-                    414 × 514 mm
-                  </span>
-                </>
-              )}
-            </div>
+            {/* DYNAMIC PACKING WHEN CUTS EXIST */}
+            {cutPieces.length > 0 && (
+              <div className="absolute inset-2 flex flex-wrap content-start gap-1.5 overflow-hidden">
+                {cutPieces.map((piece, idx) => {
+                  const isFirst = idx === 0;
+                  const wPct = Math.min(
+                    94,
+                    Math.max(16, Math.round((piece.widthMm / activeBoard.widthMm) * 100))
+                  );
+                  const hPct = Math.min(
+                    94,
+                    Math.max(14, Math.round((piece.heightMm / activeBoard.heightMm) * 100))
+                  );
 
-            <div
-              onClick={() =>
-                setSelectedCadPiece('#3 Fondo Mesita Nórdica V1 • 414 × 514 mm')
-              }
-              className="absolute top-[47%] left-[23%] w-[21%] h-[49%] bg-[#f5f5f3] border border-[#343535] flex flex-col items-center justify-center text-center p-1 cursor-pointer hover:bg-white transition-all"
-            >
-              {showLabelsOnCad && (
-                <>
-                  <span className="text-[8px] font-extrabold text-[#121414] leading-tight">
-                    #3 FONDO MESITA
-                  </span>
-                  <span className="text-[7px] font-bold text-[#303031] tabular-nums">
-                    414 × 514 mm
-                  </span>
-                </>
-              )}
-            </div>
+                  return (
+                    <div
+                      key={piece.id}
+                      onClick={() =>
+                        setSelectedCadPiece(
+                          `${piece.name} • ${piece.widthMm} × ${piece.heightMm} mm (×${piece.quantity})`
+                        )
+                      }
+                      style={{
+                        flexBasis: `${Math.min(48, Math.max(22, wPct * 0.5))}%`,
+                        height: `${Math.min(44, Math.max(18, hPct * 0.45))}%`,
+                      }}
+                      className={`rounded border flex flex-col items-center justify-center text-center p-1 cursor-pointer transition-all ${
+                        isFirst
+                          ? 'bg-[#ffdbcf] border-[#e87a50] text-[#380d00]'
+                          : 'bg-[#f5f5f3] border-[#343535] text-[#121414] hover:bg-white'
+                      }`}
+                    >
+                      {showLabelsOnCad && (
+                        <>
+                          <span className="text-[8px] font-extrabold leading-tight truncate max-w-full">
+                            #{piece.numberLabel} {piece.name}
+                          </span>
+                          <span className="text-[7px] font-bold opacity-80 tabular-nums">
+                            {piece.widthMm} × {piece.heightMm} mm (×{piece.quantity})
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
 
-            {/* Pieces 4 to 7: FONDOS DE CAJÓN */}
-            {[0, 1, 2, 3].map((idx) => (
-              <div
-                key={idx}
-                onClick={() =>
-                  setSelectedCadPiece(`#${idx + 4} Fondo de Cajón • 380 × 340 mm`)
-                }
-                style={{ left: `${45.5 + idx * 13.2}%` }}
-                className="absolute top-[2%] w-[12.2%] h-[22%] bg-[#e8e6e5] border border-[#343535] flex flex-col items-center justify-center text-center p-0.5 cursor-pointer hover:bg-white transition-all"
-              >
-                {showLabelsOnCad && (
-                  <>
-                    <span className="text-[7px] font-extrabold text-[#121414]">
-                      #{idx + 4} CAJÓN
+                {wasteAreaM2 > 0.05 && (
+                  <div className="flex-1 min-w-[28%] min-h-[18%] bg-[#d9d7d6] border border-dashed border-[#717171] rounded flex flex-col items-center justify-center p-1 text-center">
+                    <span className="text-[8px] font-extrabold text-[#1b1c1c]">
+                      RETAZO FONDO
                     </span>
-                    <span className="text-[6.5px] font-bold text-[#303031] tabular-nums">
-                      380×340
+                    <span className="text-[7px] font-semibold text-[#303031] tabular-nums">
+                      {wasteAreaM2} m² libre ({activeBoard.name.replace('Fondo ', '')})
                     </span>
-                  </>
+                  </div>
                 )}
               </div>
-            ))}
-
-            {/* RETAZO FONDO DISPONIBLE */}
-            <div
-              onClick={() =>
-                setSelectedCadPiece(
-                  `Retazo Fondo ${activeBoard.name.replace('Fondo ', '')} • 1490 × 1350 mm`
-                )
-              }
-              className="absolute bottom-[2%] right-[1.5%] w-[53%] h-[71%] bg-[#d9d7d6] border border-[#717171] flex flex-col items-center justify-center text-center p-2 cursor-pointer hover:bg-[#e5e2e1] transition-all"
-            >
-              {showLabelsOnCad && (
-                <>
-                  <span className="text-[9px] font-extrabold text-[#1b1c1c]">
-                    RETAZO FONDO (1490 × 1350)
-                  </span>
-                  <span className="text-[7.5px] font-semibold text-[#303031] mt-0.5">
-                    Color: {activeBoard.name.replace('Fondo ', '')}
-                  </span>
-                </>
-              )}
-            </div>
+            )}
 
             {/* Floating Scale Badge */}
             <div className="absolute bottom-2.5 left-2.5 bg-[#181a1a]/95 border border-white/10 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-md">
@@ -800,7 +804,7 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
       {/* SECTION: CORTES DE FONDO ASIGNADOS (EDITABLE & LEGIBLE) */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-0.5">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <h2 className="text-base font-bold font-display text-white">
               Cortes de Fondo
             </h2>
@@ -809,151 +813,190 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
             </span>
           </div>
 
-          <button
-            onClick={openNewCutModal}
-            className="text-xs font-bold text-[#ffb59b] hover:text-[#e87a50] transition-colors cursor-pointer"
-          >
-            + Nuevo Corte
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                setSelectedCadPiece(null);
+                onResetCleanOrder();
+              }}
+              title="Reiniciar todos los cortes de fondo, simulador y eficiencia a 0 absoluto"
+              className="h-8 px-2.5 rounded-lg bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/70 text-[#ffb59b] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+            >
+              <RotateCcw className="w-3 h-3 text-[#ffb59b]" />
+              <span>Reiniciar</span>
+            </button>
+
+            <button
+              onClick={openNewCutModal}
+              className="h-8 px-2.5 rounded-lg bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Corte</span>
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-3">
-          {cutPieces.map((piece, idx) => {
-            const isFirst = idx === 0;
-            return (
-              <div
-                key={piece.id}
-                className="atelier-card rounded-2xl p-4 space-y-3"
+        {cutPieces.length === 0 ? (
+          <div className="atelier-card rounded-2xl p-6 text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-[#271e1a] border border-[#e87a50]/40 flex items-center justify-center text-[#ffb59b]">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Cortes de Fondo, Simulador y Eficiencia en 0%
+              </h3>
+              <p className="text-xs text-[#c8c6c5] mt-1">
+                No hay ningún corte de fondo cargado. Agrega tus piezas a medida para calcular el patrón.
+              </p>
+            </div>
+            <div className="flex items-center justify-center pt-1">
+              <button
+                onClick={openNewCutModal}
+                className="px-4 py-2.5 rounded-xl bg-[#e87a50] text-[#121414] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold tabular-nums shrink-0 ${
-                        isFirst
-                          ? 'bg-[#3c241b] text-[#ffb59b]'
-                          : 'bg-[#252727] text-white'
-                      }`}
-                    >
-                      {piece.numberLabel}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white leading-snug">
-                        {piece.name}
-                      </h3>
-                      <p className="text-xs text-[#c8c6c5] mt-0.5">
-                        {piece.subtitle}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <div className="bg-[#252727] text-[#ffb59b] text-xs font-bold px-2.5 py-1 rounded-lg tabular-nums">
-                      {formatARS(piece.unitPriceArs)} c/u
-                    </div>
-                    <button
-                      onClick={() => openEditCutModal(piece)}
-                      title="Editar medida o nombre de este fondo"
-                      className="p-1.5 rounded-lg bg-[#252727] text-[#e3e2e2] hover:bg-[#e87a50] hover:text-[#121414] transition-colors cursor-pointer"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => onDeletePiece(piece.id)}
-                      title="Eliminar corte de fondo"
-                      className="p-1.5 rounded-lg bg-[#252727] text-[#c8c6c5] hover:text-[#ffb4ab] transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* High-Legibility Dimensions & Mounting Bar */}
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Agregar Primer Corte de Fondo</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {cutPieces.map((piece, idx) => {
+              const isFirst = idx === 0;
+              return (
                 <div
-                  onClick={() => openEditCutModal(piece)}
-                  className="bg-[#222424] hover:bg-[#2a2c2c] border border-white/5 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs cursor-pointer transition-colors"
+                  key={piece.id}
+                  className="atelier-card rounded-2xl p-4 space-y-3"
                 >
-                  <div className="flex items-center gap-2 font-bold text-white text-sm tabular-nums">
-                    <span
-                      className="w-3.5 h-3.5 rounded-xs border border-white/40 inline-block"
-                      style={{ backgroundColor: activeBoard.swatchColor }}
-                    />
-                    <span>
-                      {piece.widthMm} × {piece.heightMm} mm
-                    </span>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold tabular-nums shrink-0 ${
+                          isFirst
+                            ? 'bg-[#3c241b] text-[#ffb59b]'
+                            : 'bg-[#252727] text-white'
+                        }`}
+                      >
+                        {piece.numberLabel}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white leading-snug">
+                          {piece.name}
+                        </h3>
+                        <p className="text-xs text-[#c8c6c5] mt-0.5">
+                          {piece.subtitle}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="bg-[#252727] text-[#ffb59b] text-xs font-bold px-2.5 py-1 rounded-lg tabular-nums">
+                        {formatARS(piece.unitPriceArs)} c/u
+                      </div>
+                      <button
+                        onClick={() => openEditCutModal(piece)}
+                        title="Editar medida o nombre de este fondo"
+                        className="p-1.5 rounded-lg bg-[#252727] text-[#e3e2e2] hover:bg-[#e87a50] hover:text-[#121414] transition-colors cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onDeletePiece(piece.id)}
+                        title="Eliminar corte de fondo"
+                        className="p-1.5 rounded-lg bg-[#252727] text-[#c8c6c5] hover:text-[#ffb4ab] transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[#e3e2e2] font-semibold">
-                    <Check className="w-3.5 h-3.5 text-[#ffb59b]" />
-                    <span>{piece.edgesLabel}</span>
-                  </div>
-                </div>
-
-                {/* Rotation & Quantity Stepper */}
-                <div className="flex items-center justify-between pt-0.5">
-                  <button
-                    onClick={() => onTogglePieceRotation(piece.id)}
-                    className="flex items-center gap-2 text-xs font-semibold cursor-pointer group"
+                  {/* High-Legibility Dimensions & Mounting Bar */}
+                  <div
+                    onClick={() => openEditCutModal(piece)}
+                    className="bg-[#222424] hover:bg-[#2a2c2c] border border-white/5 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs cursor-pointer transition-colors"
                   >
-                    {piece.mandatoryGrain ? (
-                      <>
-                        <Lock className="w-3.5 h-3.5 text-[#e87a50]" />
-                        <span className="text-[#ffb59b]">
-                          Veta Obligatoria
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <RotateCw className="w-3.5 h-3.5 text-[#c8c6c5] group-hover:text-white transition-colors" />
-                        <span className="text-[#c8c6c5] group-hover:text-white transition-colors">
-                          Permite rotación 90°
-                        </span>
-                      </>
-                    )}
-                  </button>
+                    <div className="flex items-center gap-2 font-bold text-white text-sm tabular-nums">
+                      <span
+                        className="w-3.5 h-3.5 rounded-xs border border-white/40 inline-block"
+                        style={{ backgroundColor: activeBoard.swatchColor }}
+                      />
+                      <span>
+                        {piece.widthMm} × {piece.heightMm} mm
+                      </span>
+                    </div>
 
-                  <div className="flex items-center gap-3 bg-[#202222] border border-white/10 rounded-full px-2.5 py-1">
+                    <div className="flex items-center gap-1.5 text-[#e3e2e2] font-semibold">
+                      <Check className="w-3.5 h-3.5 text-[#ffb59b]" />
+                      <span>{piece.edgesLabel}</span>
+                    </div>
+                  </div>
+
+                  {/* Rotation & Quantity Stepper */}
+                  <div className="flex items-center justify-between pt-0.5">
                     <button
-                      onClick={() => onUpdatePieceQty(piece.id, -1)}
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer"
+                      onClick={() => onTogglePieceRotation(piece.id)}
+                      className="flex items-center gap-2 text-xs font-semibold cursor-pointer group"
                     >
-                      <Minus className="w-3.5 h-3.5" />
+                      {piece.mandatoryGrain ? (
+                        <>
+                          <Lock className="w-3.5 h-3.5 text-[#e87a50]" />
+                          <span className="text-[#ffb59b]">
+                            Veta Obligatoria
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <RotateCw className="w-3.5 h-3.5 text-[#c8c6c5] group-hover:text-white transition-colors" />
+                          <span className="text-[#c8c6c5] group-hover:text-white transition-colors">
+                            Permite rotación 90°
+                          </span>
+                        </>
+                      )}
                     </button>
-                    <span className="text-xs font-bold text-white min-w-[16px] text-center tabular-nums">
-                      {piece.quantity}
-                    </span>
-                    <button
-                      onClick={() => onUpdatePieceQty(piece.id, 1)}
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+
+                    <div className="flex items-center gap-3 bg-[#202222] border border-white/10 rounded-full px-2.5 py-1">
+                      <button
+                        onClick={() => onUpdatePieceQty(piece.id, -1)}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-xs font-bold text-white min-w-[16px] text-center tabular-nums">
+                        {piece.quantity}
+                      </span>
+                      <button
+                        onClick={() => onUpdatePieceQty(piece.id, 1)}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Bottom Sticky/Action Buttons */}
         <div className="grid grid-cols-2 gap-3 pt-2">
           <button
-            onClick={() =>
-              onShowToast(
-                `Cortes de ${activeBoard.name} guardados en orden de taller`
-              )
-            }
-            className="h-12 rounded-xl bg-[#1e2020] hover:bg-[#292a2a] border border-white/10 text-[#e3e2e2] font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            onClick={() => {
+              setSelectedCadPiece(null);
+              onResetCleanOrder();
+            }}
+            className="h-12 rounded-xl bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/60 text-[#ffb59b] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
           >
-            <Save className="w-4 h-4 text-[#ffb59b]" />
-            <span>Guardar Fondo</span>
+            <RotateCcw className="w-4 h-4 text-[#e87a50]" />
+            <span>Reiniciar Fondo</span>
           </button>
 
           <button
             onClick={openNewCutModal}
-            className="h-12 rounded-xl bg-[#e3e2e2] hover:bg-white text-[#121414] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
+            className="h-12 rounded-xl bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md"
           >
             <Plus className="w-4 h-4" />
-            <span>Agregar Corte Fondo</span>
+            <span>+ Agregar Corte Fondo</span>
           </button>
         </div>
       </section>
