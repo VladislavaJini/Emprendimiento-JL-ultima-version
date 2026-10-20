@@ -1,70 +1,245 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: 'Epilogue', sans-serif;
-  --font-sans: 'DM Sans', sans-serif;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 
-  --color-surface: #121414;
-  --color-surface-dim: #121414;
-  --color-surface-bright: #383939;
-  --color-surface-lowest: #0d0e0f;
-  --color-surface-low: #1a1c1c;
-  --color-surface-container: #1e2020;
-  --color-surface-high: #292a2a;
-  --color-surface-highest: #343535;
-  --color-on-surface: #e3e2e2;
-  --color-on-surface-variant: #ddc1b7;
-  --color-outline: #a48b83;
-  --color-outline-variant: #56423c;
-  --color-primary: #ffb59b;
-  --color-on-primary: #5b1a00;
-  --color-primary-container: #e87a50;
-  --color-on-primary-container: #5c1b00;
-  --color-inverse-primary: #9e421d;
-  --color-secondary: #c8c6c5;
-  --color-tertiary: #717171;
+  /* Reference Palette Core Tokens: #BD9774, #59230F, #8C3F23, #4A4327 */
+  --color-surface: #59230F;
+  --color-surface-dim: #3E180A;
+  --color-surface-bright: #8C3F23;
+  --color-surface-lowest: #2C1006;
+  --color-surface-low: #4A4327;
+  --color-surface-container: #59230F;
+  --color-surface-high: #6D2E16;
+  --color-surface-highest: #8C3F23;
+  --color-on-surface: #FBF5EE;
+  --color-on-surface-variant: #E8D3BD;
+  --color-outline: #BD9774;
+  --color-outline-variant: #4A4327;
+  --color-primary: #BD9774;
+  --color-on-primary: #3B1507;
+  --color-primary-container: #8C3F23;
+  --color-on-primary-container: #FFF8F0;
+  --color-inverse-primary: #4A4327;
+  --color-secondary: #DEC3A7;
+  --color-tertiary: #A89F7D;
+}
+
+/* ============================================================================
+   PALETA DE REFERENCIA (MODO CÁLIDO / ARENA & CAOBA) — DEFAULT
+   Colores oficiales: #BD9774 (Arena/Roble), #59230F (Caoba), #8C3F23 (Terracota), #4A4327 (Oliva)
+   ============================================================================ */
+:root {
+  --mjl-outer-bg: #9E7B5B;
+  --mjl-app-bg: #BD9774;
+  --mjl-header-bg: #59230F;
+  --mjl-card-bg: #59230F;
+  --mjl-card-border: rgba(189, 151, 116, 0.42);
+  --mjl-subcard-bg: #4A4327;
+  --mjl-subcard-alt-bg: #431B0B;
+  --mjl-subcard-hover: #585030;
+  --mjl-primary-btn: #8C3F23;
+  --mjl-primary-btn-hover: #A14A2A;
+  --mjl-primary-btn-text: #FFF8F2;
+  --mjl-accent-camel: #BD9774;
+  --mjl-accent-camel-bright: #F0D9C0;
+  --mjl-olive: #4A4327;
+  --mjl-text-main: #FFF9F2;
+  --mjl-text-secondary: #EAD6C0;
+  --mjl-text-muted: #D5BC9F;
+  --mjl-nav-bg: rgba(89, 35, 15, 0.96);
+  --mjl-drawer-bg: #471C0C;
+}
+
+/* ============================================================================
+   MODO OSCURO (NOCHE ÉBANO / ESPRESSO & OLIVA PROFUNDO)
+   ============================================================================ */
+html.dark-mode {
+  --mjl-outer-bg: #0D0705;
+  --mjl-app-bg: #170D08;
+  --mjl-header-bg: #21110A;
+  --mjl-card-bg: #2B150C;
+  --mjl-card-border: rgba(189, 151, 116, 0.22);
+  --mjl-subcard-bg: #252214;
+  --mjl-subcard-alt-bg: #1F1009;
+  --mjl-subcard-hover: #332E1B;
+  --mjl-primary-btn: #8C3F23;
+  --mjl-primary-btn-hover: #A44C2C;
+  --mjl-primary-btn-text: #FFF8F2;
+  --mjl-accent-camel: #BD9774;
+  --mjl-accent-camel-bright: #E5C5A3;
+  --mjl-olive: #4A4327;
+  --mjl-text-main: #F7EFE6;
+  --mjl-text-secondary: #D8C2AC;
+  --mjl-text-muted: #B09880;
+  --mjl-nav-bg: rgba(26, 14, 9, 0.96);
+  --mjl-drawer-bg: #1E100A;
+}
+
+/* ============================================================================
+   MODO GENTE MAYOR (ACCESIBILIDAD: ZOOM GENERAL + TIPOGRAFÍA AMPLIADA)
+   ============================================================================ */
+html.senior-mode {
+  font-size: 19.5px;
+}
+
+html.senior-mode .text-\[9px\],
+html.senior-mode .text-\[10px\] {
+  font-size: 0.78rem !important;
+  line-height: 1.25 !important;
+}
+
+html.senior-mode .text-\[11px\] {
+  font-size: 0.85rem !important;
+  line-height: 1.3 !important;
+}
+
+html.senior-mode .max-w-\[420px\] {
+  max-width: 480px !important;
+}
+
+html.senior-mode button,
+html.senior-mode select,
+html.senior-mode input {
+  min-height: 2.35rem;
 }
 
 @layer base {
   body {
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    background-color: #121414;
-    color: #e3e2e2;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--mjl-outer-bg);
+    color: var(--mjl-text-main);
     font-variant-numeric: tabular-nums;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   h1, h2, h3, .font-display {
-    font-family: 'Epilogue', sans-serif;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    letter-spacing: 0.015em;
   }
 }
 
+/* ============================================================================
+   CARDS & SURFACES (PALETA #BD9774 / #59230F / #8C3F23 / #4A4327)
+   ============================================================================ */
 .atelier-card {
-  background-color: #181a1a;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.36), 0 2px 6px -1px rgba(0, 0, 0, 0.2);
+  background-color: var(--mjl-card-bg) !important;
+  border: 1px solid var(--mjl-card-border) !important;
+  box-shadow: 0 10px 26px -6px rgba(45, 16, 6, 0.48), 0 3px 8px -2px rgba(0, 0, 0, 0.28);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .atelier-subcard {
-  background-color: #202222;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: var(--mjl-subcard-bg) !important;
+  border: 1px solid rgba(189, 151, 116, 0.24) !important;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .atelier-hatch {
   background-image: repeating-linear-gradient(
     -45deg,
-    #e87a50,
-    #e87a50 2px,
+    #8C3F23,
+    #8C3F23 2px,
     transparent 2px,
     transparent 5px
   );
 }
 
 .cad-grid-bg {
-  background-color: #131515;
+  background-color: var(--mjl-subcard-alt-bg);
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(189, 151, 116, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(189, 151, 116, 0.08) 1px, transparent 1px);
   background-size: 20px 20px;
+}
+
+/* ============================================================================
+   GLOBAL PALETTE MAPPING FOR EXISTING UTILITY CLASSES ACROSS ALL 11 SCREENS
+   ============================================================================ */
+.bg-\[\#090a0a\] {
+  background-color: var(--mjl-outer-bg) !important;
+}
+
+.bg-\[\#121414\] {
+  background-color: var(--mjl-app-bg) !important;
+}
+
+.bg-\[\#121414\]\/95 {
+  background-color: var(--mjl-nav-bg) !important;
+}
+
+.bg-\[\#161818\],
+.bg-\[\#181a1a\] {
+  background-color: var(--mjl-card-bg) !important;
+}
+
+.bg-\[\#202222\],
+.bg-\[\#222424\],
+.bg-\[\#252727\],
+.bg-\[\#232525\] {
+  background-color: var(--mjl-subcard-bg) !important;
+}
+
+.bg-\[\#141616\],
+.bg-\[\#1a1c1c\],
+.bg-\[\#151717\] {
+  background-color: var(--mjl-subcard-alt-bg) !important;
+}
+
+.hover\:bg-\[\#2c2e2e\]:hover,
+.hover\:bg-\[\#2a2c2c\]:hover {
+  background-color: var(--mjl-subcard-hover) !important;
+}
+
+/* Terracotta (#8C3F23) Primary Buttons & Accents */
+.bg-\[\#e87a50\] {
+  background-color: var(--mjl-primary-btn) !important;
+  color: var(--mjl-primary-btn-text) !important;
+}
+
+.hover\:bg-\[\#f0855c\]:hover {
+  background-color: var(--mjl-primary-btn-hover) !important;
+}
+
+.bg-\[\#e87a50\]\/15,
+.bg-\[\#e87a50\]\/10,
+.bg-\[\#e87a50\]\/20,
+.bg-\[\#261c18\],
+.bg-\[\#2c1d17\],
+.bg-\[\#241914\] {
+  background-color: rgba(140, 63, 35, 0.32) !important;
+}
+
+.border-\[\#e87a50\],
+.border-\[\#e87a50\]\/50,
+.border-\[\#e87a50\]\/40,
+.border-\[\#e87a50\]\/30 {
+  border-color: var(--mjl-accent-camel) !important;
+}
+
+/* Camel (#BD9774) & Terracotta (#8C3F23) Text & Icons */
+.text-\[\#ffb59b\] {
+  color: var(--mjl-accent-camel-bright) !important;
+}
+
+.text-\[\#e87a50\] {
+  color: var(--mjl-accent-camel) !important;
+}
+
+.bg-\[\#ffb59b\] {
+  background-color: var(--mjl-accent-camel) !important;
+  color: #3B1507 !important;
+}
+
+.text-\[\#c8c6c5\],
+.text-\[\#b7b5b4\] {
+  color: var(--mjl-text-secondary) !important;
+}
+
+.text-\[\#a1a1a1\],
+.text-\[\#717171\] {
+  color: var(--mjl-text-muted) !important;
 }
 
 /* Custom subtle scrollbars */
@@ -73,12 +248,12 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #121414;
+  background: var(--mjl-card-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #292a2a;
+  background: var(--mjl-olive);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #e87a50;
+  background: var(--mjl-primary-btn);
 }

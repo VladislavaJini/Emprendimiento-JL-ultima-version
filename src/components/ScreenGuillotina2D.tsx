@@ -113,6 +113,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   const [cutW, setCutW] = useState('600');
   const [cutH, setCutH] = useState('400');
   const [cutQty, setCutQty] = useState('2');
+  const [cutCustomPrice, setCutCustomPrice] = useState<string>('');
   const [cutEdges, setCutEdges] = useState<'4L' | '2L' | '1L' | '0L'>('2L');
   const [cutAllowRotation, setCutAllowRotation] = useState<boolean>(true);
   const [saveAlsoAsPreset, setSaveAlsoAsPreset] = useState<boolean>(false);
@@ -237,8 +238,10 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     setCutSub('Módulo Taller J&L');
     setCutW('600');
     setCutH('400');
-    setCutQty('2');
-    setCutEdges('2L');
+    setCutQty('1');
+    const defaultPrice = Math.round(((600 * 400) / 1_000_000) * costPerM2 * 1.15);
+    setCutCustomPrice(String(defaultPrice));
+    setCutEdges('0L');
     setCutAllowRotation(true);
     setSaveAlsoAsPreset(false);
     setShowCutModal(true);
@@ -251,6 +254,11 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     setCutW(String(p.widthMm));
     setCutH(String(p.heightMm));
     setCutQty(String(p.quantity));
+    const calcPrice =
+      p.unitPriceArs && p.unitPriceArs > 0
+        ? p.unitPriceArs
+        : Math.round(((p.widthMm * p.heightMm) / 1_000_000) * costPerM2 * 1.15);
+    setCutCustomPrice(String(calcPrice));
     setCutEdges(p.edgesType);
     setCutAllowRotation(p.allowRotation);
     setSaveAlsoAsPreset(false);
@@ -272,17 +280,19 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
 
     onAddCutPiece({
       name: preset.name,
-      subtitle: `${preset.widthMm} × ${preset.heightMm} mm • ${preset.edgesLabel}`,
+      subtitle: 'Módulo Taller J&L',
       widthMm: preset.widthMm,
       heightMm: preset.heightMm,
       quantity: qty,
       unitPriceArs: price,
-      edgesLabel: preset.edgesLabel,
+      edgesLabel: 'Sin Tapacantos',
       edgesType: preset.edgesType,
       allowRotation: preset.allowRotation,
       mandatoryGrain: !preset.allowRotation,
     });
-    onShowToast(`Corte asignado desde plantilla: ${preset.name} (×${qty})`);
+    onShowToast(
+      `Corte asignado: ${preset.name} (×${qty}) • Valor: ${formatARS(price * qty)}`
+    );
   };
 
   // Preset CRUD Modal open handlers
@@ -349,7 +359,9 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     const h = Math.max(50, Math.min(1830, parseInt(cutH, 10) || 400));
     const q = Math.max(1, Math.min(50, parseInt(cutQty, 10) || 1));
     const area = (w * h) / 1_000_000;
-    const price = Math.round(area * costPerM2 * 1.15);
+    const autoPrice = Math.round(area * costPerM2 * 1.15);
+    const parsedCustom = parseInt(cutCustomPrice.replace(/\D/g, ''), 10);
+    const price = !isNaN(parsedCustom) && parsedCustom > 0 ? parsedCustom : autoPrice;
 
     const edgesLabelMap = {
       '4L': 'Cantos 4L (2mm ABS)',
@@ -373,7 +385,9 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
           mandatoryGrain: !cutAllowRotation,
         });
       }
-      onShowToast(`Corte actualizado (${w} × ${h} mm • ${q} uds)`);
+      onShowToast(
+        `Corte actualizado (${w} × ${h} mm • ${q} uds • ${formatARS(price * q)})`
+      );
     } else {
       onAddCutPiece({
         name: cutName.trim() || 'Panel Medida Especial',
@@ -387,7 +401,9 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
         allowRotation: cutAllowRotation,
         mandatoryGrain: !cutAllowRotation,
       });
-      onShowToast(`Corte agregado a la placa (${w} × ${h} mm • ${q} uds)`);
+      onShowToast(
+        `Corte agregado (${w} × ${h} mm • ${q} uds • ${formatARS(price * q)})`
+      );
 
       if (saveAlsoAsPreset && onAddPredefinedCut) {
         onAddPredefinedCut({
@@ -1049,8 +1065,44 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
             ) : (
               /* Cut Piece Cards */
               <div className="space-y-3">
+                {/* Summary Bar: Total Value of All Loaded Cuts */}
+                <div className="bg-[#1b1d1d] border border-[#e87a50]/35 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs">
+                  <span className="text-[#c8c6c5] font-semibold">
+                    Valor total cortes ({totalPiecesCount}{' '}
+                    {totalPiecesCount === 1 ? 'unidad' : 'unidades'}):
+                  </span>
+                  <span className="text-sm font-extrabold text-[#ffb59b] tabular-nums">
+                    {formatARS(
+                      cutPieces.reduce((sum, p) => {
+                        const unitVal =
+                          p.unitPriceArs && p.unitPriceArs > 0
+                            ? p.unitPriceArs
+                            : Math.round(
+                                ((p.widthMm * p.heightMm) / 1_000_000) *
+                                  costPerM2 *
+                                  1.15
+                              );
+                        return sum + unitVal * p.quantity;
+                      }, 0)
+                    )}
+                  </span>
+                </div>
+
                 {visiblePieces.map((piece, idx) => {
                   const isFirst = idx === 0;
+                  const unitCutPriceArs =
+                    piece.unitPriceArs && piece.unitPriceArs > 0
+                      ? piece.unitPriceArs
+                      : Math.round(
+                          ((piece.widthMm * piece.heightMm) / 1_000_000) *
+                            costPerM2 *
+                            1.15
+                        );
+                  const totalCutPriceArs = unitCutPriceArs * piece.quantity;
+                  const cleanSubtitle = (piece.subtitle || 'Módulo Taller J&L')
+                    .replace(/\s*•\s*Cantos.*$/i, '')
+                    .replace(/\s*•\s*Sin Tapacantos.*$/i, '');
+
                   return (
                     <div
                       key={piece.id}
@@ -1072,7 +1124,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                               {piece.name}
                             </h3>
                             <p className="text-xs text-[#a1a1a1] truncate">
-                              {piece.subtitle}
+                              {cleanSubtitle}
                             </p>
                           </div>
                         </div>
@@ -1080,7 +1132,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                         <div className="flex items-center gap-1 text-[#c8c6c5] shrink-0">
                           <button
                             onClick={() => openEditModal(piece)}
-                            title="Editar dimensiones y cantidad"
+                            title="Editar dimensiones, precio y cantidad"
                             className="p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                           >
                             <Pencil className="w-4 h-4" />
@@ -1095,7 +1147,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                         </div>
                       </div>
 
-                      {/* Dimensions & Cantos Row */}
+                      {/* Dimensions & Specific Cut Value Row (Sums automatically with Quantity) */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="bg-[#222424] rounded-xl px-3 py-2 flex items-center justify-between">
                           <span className="text-[#a1a1a1]">Medidas:</span>
@@ -1104,11 +1156,22 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                           </span>
                         </div>
 
-                        <div className="bg-[#222424] rounded-xl px-3 py-2 flex items-center justify-between">
-                          <span className="text-[#a1a1a1]">Cantos:</span>
-                          <span className="font-bold text-[#ffb59b]">
-                            {piece.edgesType}
-                          </span>
+                        <div className="bg-[#222424] rounded-xl px-3 py-2 flex flex-col justify-center">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[#a1a1a1]">
+                              {piece.quantity > 1
+                                ? `Valor (×${piece.quantity}):`
+                                : 'Valor:'}
+                            </span>
+                            <span className="font-bold text-[#ffb59b] tabular-nums">
+                              {formatARS(totalCutPriceArs)}
+                            </span>
+                          </div>
+                          {piece.quantity > 1 && (
+                            <div className="text-[10px] text-[#9e9c9b] text-right tabular-nums leading-tight mt-0.5">
+                              {formatARS(unitCutPriceArs)} c/u
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1222,7 +1285,15 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                         {pre.name}
                       </div>
                       <div className="text-[11px] text-[#ffb59b] font-semibold tabular-nums mt-0.5">
-                        {pre.widthMm} × {pre.heightMm} mm • {pre.edgesLabel}
+                        {pre.widthMm} × {pre.heightMm} mm • Valor:{' '}
+                        {formatARS(
+                          Math.round(
+                            ((pre.widthMm * pre.heightMm) / 1_000_000) *
+                              costPerM2 *
+                              1.15
+                          )
+                        )}{' '}
+                        c/u
                       </div>
                     </div>
 
@@ -1333,26 +1404,22 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                  Pegado de Cantos (Filo)
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['4L', '2L', '1L', '0L'] as const).map((edge) => (
-                    <button
-                      type="button"
-                      key={edge}
-                      onClick={() => setPresetEdges(edge)}
-                      className={`py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
-                        presetEdges === edge
-                          ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
-                          : 'bg-[#222424] text-[#c8c6c5] border-white/10'
-                      }`}
-                    >
-                      {edge}
-                    </button>
-                  ))}
-                </div>
+              <div className="bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs">
+                <span className="text-[#c8c6c5] font-semibold">
+                  Valor estimado por corte:
+                </span>
+                <span className="font-bold text-[#ffb59b] tabular-nums">
+                  {formatARS(
+                    Math.round(
+                      (((parseInt(presetW, 10) || 0) *
+                        (parseInt(presetH, 10) || 0)) /
+                        1_000_000) *
+                        costPerM2 *
+                        1.15
+                    )
+                  )}{' '}
+                  c/u
+                </span>
               </div>
 
               <div className="flex items-center gap-2 pt-1">
@@ -1418,6 +1485,15 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                       setCutName(preset.name);
                       setCutW(String(preset.widthMm));
                       setCutH(String(preset.heightMm));
+                      setCutCustomPrice(
+                        String(
+                          Math.round(
+                            ((preset.widthMm * preset.heightMm) / 1_000_000) *
+                              costPerM2 *
+                              1.15
+                          )
+                        )
+                      );
                       setCutEdges(preset.edgesType);
                       setCutAllowRotation(preset.allowRotation);
                     }
@@ -1429,7 +1505,15 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                   </option>
                   {predefinedCuts.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.widthMm}×{p.heightMm} mm • {p.edgesType})
+                      {p.name} ({p.widthMm}×{p.heightMm} mm •{' '}
+                      {formatARS(
+                        Math.round(
+                          ((p.widthMm * p.heightMm) / 1_000_000) *
+                            costPerM2 *
+                            1.15
+                        )
+                      )}
+                      )
                     </option>
                   ))}
                 </select>
@@ -1473,7 +1557,17 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     type="number"
                     required
                     value={cutW}
-                    onChange={(e) => setCutW(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCutW(val);
+                      const wNum = parseInt(val, 10) || 0;
+                      const hNum = parseInt(cutH, 10) || 0;
+                      setCutCustomPrice(
+                        String(
+                          Math.round(((wNum * hNum) / 1_000_000) * costPerM2 * 1.15)
+                        )
+                      );
+                    }}
                     className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs text-white tabular-nums focus:outline-none focus:border-[#e87a50]"
                   />
                 </div>
@@ -1485,7 +1579,17 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     type="number"
                     required
                     value={cutH}
-                    onChange={(e) => setCutH(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCutH(val);
+                      const wNum = parseInt(cutW, 10) || 0;
+                      const hNum = parseInt(val, 10) || 0;
+                      setCutCustomPrice(
+                        String(
+                          Math.round(((wNum * hNum) / 1_000_000) * costPerM2 * 1.15)
+                        )
+                      );
+                    }}
                     className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs text-white tabular-nums focus:outline-none focus:border-[#e87a50]"
                   />
                 </div>
@@ -1504,25 +1608,33 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                  Pegado de Cantos (Filo)
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['4L', '2L', '1L', '0L'] as const).map((edge) => (
-                    <button
-                      type="button"
-                      key={edge}
-                      onClick={() => setCutEdges(edge)}
-                      className={`py-2 rounded-lg text-xs font-bold border cursor-pointer ${
-                        cutEdges === edge
-                          ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
-                          : 'bg-[#222424] text-[#c8c6c5] border-white/10'
-                      }`}
-                    >
-                      {edge}
-                    </button>
-                  ))}
+              <div className="p-3 rounded-xl bg-[#1d1f1f] border border-[#e87a50]/35 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-semibold text-[#c8c6c5]">
+                    Valor Unitario del Corte (ARS)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={cutCustomPrice}
+                    onChange={(e) => setCutCustomPrice(e.target.value)}
+                    className="w-28 bg-[#272929] border border-white/15 rounded-lg px-2.5 py-1 text-xs font-bold text-[#ffb59b] text-right tabular-nums focus:outline-none focus:border-[#e87a50]"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">
+                  <span className="text-[#a1a1a1]">
+                    Total sumado ({Math.max(1, parseInt(cutQty, 10) || 1)}{' '}
+                    {Math.max(1, parseInt(cutQty, 10) || 1) === 1
+                      ? 'unidad'
+                      : 'unidades'}
+                    ):
+                  </span>
+                  <span className="text-sm font-extrabold text-[#e87a50] tabular-nums">
+                    {formatARS(
+                      (parseInt(cutCustomPrice, 10) || 0) *
+                        Math.max(1, parseInt(cutQty, 10) || 1)
+                    )}
+                  </span>
                 </div>
               </div>
 

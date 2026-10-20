@@ -1,11 +1,11 @@
 export type ScreenId =
   | 'inicio'
+  | 'presupuesto'
   | 'guillotina'
   | 'fondo'
   | 'filo'
   | 'inventario'
   | 'catalogo'
-  | 'cad'
   | 'operaciones'
   | 'logistica'
   | 'pedidos'
@@ -192,4 +192,5 @@ export interface FurnitureDesign {
   bomItems: BomMaterialItem[];
   drawerCount?: number;
   drawersConfig?: DrawerSpec[];
+  thumbnailUrl?: string;
 }

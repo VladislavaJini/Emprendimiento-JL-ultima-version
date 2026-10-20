@@ -16,12 +16,17 @@ import { formatARS } from '../data/initialData';
 
 interface ScreenInicioProps {
   orders: WorkshopOrder[];
-  soldUnitsCount: number;
+  soldUnitsCount?: number;
   salesGoalUnits: number;
-  onUpdateSoldUnits: (newCount: number) => void;
-  onUpdateSalesGoal: (newGoal: number) => void;
+  onUpdateSoldUnits?: (newCount: number) => void;
+  onUpdateSalesGoal?: (newGoal: number) => void;
+  extraSoldUnits?: number;
+  onUpdateExtraSoldUnits?: (newCount: number) => void;
+  onUpdateSalesGoalUnits?: (newGoal: number) => void;
   onGoToPedidos: (orderId?: string) => void;
-  onGoToFlete: (orderId: string) => void;
+  onGoToFlete?: (orderId: string) => void;
+  onSelectOrderForFreight?: (orderId: string) => void;
+  onGoToPresupuesto?: () => void;
   onMarkOrderDelivered: (orderId: string) => void;
   onShowToast: (msg: string) => void;
 }
@@ -98,27 +103,82 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
   salesGoalUnits,
   onUpdateSoldUnits,
   onUpdateSalesGoal,
+  extraSoldUnits = 12,
+  onUpdateExtraSoldUnits,
+  onUpdateSalesGoalUnits,
   onGoToPedidos,
   onGoToFlete,
+  onSelectOrderForFreight,
+  onGoToPresupuesto,
   onMarkOrderDelivered,
   onShowToast,
 }) => {
-  const [showGoalEditor, setShowGoalEditor] = useState(false);
-  const [goalInput, setGoalInput] = useState(String(salesGoalUnits));
-  const [soldInput, setSoldInput] = useState(String(soldUnitsCount));
+  const deliveredFromOrders = (Array.isArray(orders) ? orders : [])
+    .filter((o) => o && o.stage === 'entregado')
+    .reduce((acc, o) => acc + (Number(o.furnitureQty) || Number(o.packagesCount) || 1), 0);
 
-  const safeGoal = Math.max(1, salesGoalUnits);
-  const fillRatio = Math.min(1, Math.max(0, soldUnitsCount / safeGoal));
+  const safeExtraSold = Number.isFinite(Number(extraSoldUnits))
+    ? Number(extraSoldUnits)
+    : 12;
+
+  const rawSoldUnits =
+    typeof soldUnitsCount === 'number' && Number.isFinite(soldUnitsCount)
+      ? soldUnitsCount
+      : Math.max(0, safeExtraSold + deliveredFromOrders);
+
+  const effectiveSoldUnits = Number.isFinite(rawSoldUnits) ? rawSoldUnits : 12;
+
+  const handleSetSoldUnits = (newCount: number) => {
+    const validCount = Number.isFinite(newCount) ? Math.max(0, newCount) : 0;
+    if (onUpdateSoldUnits) {
+      onUpdateSoldUnits(validCount);
+    } else if (onUpdateExtraSoldUnits) {
+      onUpdateExtraSoldUnits(Math.max(0, validCount - deliveredFromOrders));
+    }
+  };
+
+  const handleSetGoalUnits = (newGoal: number) => {
+    const validGoal = Number.isFinite(newGoal) && newGoal > 0 ? newGoal : 20;
+    if (onUpdateSalesGoal) {
+      onUpdateSalesGoal(validGoal);
+    } else if (onUpdateSalesGoalUnits) {
+      onUpdateSalesGoalUnits(validGoal);
+    }
+  };
+
+  const handleOpenFreight = (orderId: string) => {
+    if (onGoToFlete) onGoToFlete(orderId);
+    else if (onSelectOrderForFreight) onSelectOrderForFreight(orderId);
+  };
+
+  const safeGoal =
+    typeof salesGoalUnits === 'number' && Number.isFinite(salesGoalUnits) && salesGoalUnits > 0
+      ? salesGoalUnits
+      : 20;
+
+  const [showGoalEditor, setShowGoalEditor] = useState(false);
+  const [goalInput, setGoalInput] = useState(String(safeGoal));
+  const [soldInput, setSoldInput] = useState(String(effectiveSoldUnits));
+
+  const rawRatio = effectiveSoldUnits / safeGoal;
+  const fillRatio = Number.isFinite(rawRatio)
+    ? Math.min(1, Math.max(0, rawRatio))
+    : 0;
   const fillPercent = Math.round(fillRatio * 100);
 
   // Total ARS of all orders
   const totalSalesArs = useMemo(() => {
-    return orders.reduce((acc, o) => acc + (Number(o.totalArs) || 0), 0);
+    return (Array.isArray(orders) ? orders : []).reduce(
+      (acc, o) => acc + (Number(o?.totalArs) || 0),
+      0
+    );
   }, [orders]);
 
   // Active orders sorted strictly by delivery date ascending (closest first, furthest last)
   const sortedActiveOrders = useMemo(() => {
-    const pending = orders.filter((o) => o && o.stage !== 'entregado');
+    const pending = (Array.isArray(orders) ? orders : []).filter(
+      (o) => o && o.stage !== 'entregado'
+    );
     return [...pending].sort(
       (a, b) => parseOrderDateToTimestamp(a) - parseOrderDateToTimestamp(b)
     );
@@ -152,8 +212,12 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
   const tableTopY = 16;
   const tableBottomY = 146;
   const tableTotalH = tableBottomY - tableTopY;
-  const fillHeightPx = tableTotalH * fillRatio;
-  const fillStartY = tableBottomY - fillHeightPx;
+  const fillHeightPx = Number.isFinite(tableTotalH * fillRatio)
+    ? tableTotalH * fillRatio
+    : 0;
+  const fillStartY = Number.isFinite(tableBottomY - fillHeightPx)
+    ? tableBottomY - fillHeightPx
+    : tableBottomY;
 
   return (
     <div className="space-y-5">
@@ -178,7 +242,7 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
                 type="button"
                 onClick={() => {
                   setGoalInput(String(salesGoalUnits));
-                  setSoldInput(String(soldUnitsCount));
+                  setSoldInput(String(effectiveSoldUnits));
                   setShowGoalEditor((prev) => !prev);
                 }}
                 title="Ajustar meta o contador de ventas"
@@ -191,7 +255,7 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
             {/* Giant Sales Number */}
             <div className="flex items-baseline gap-2.5 tabular-nums">
               <span className="text-5xl font-extrabold font-display text-white tracking-tight leading-none">
-                {soldUnitsCount}
+                {effectiveSoldUnits}
               </span>
               <div className="flex flex-col">
                 <span className="text-xs font-bold text-[#ffb59b]">
@@ -212,11 +276,11 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
                 </strong>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() =>
-                    onUpdateSoldUnits(Math.max(0, soldUnitsCount - 1))
+                    handleSetSoldUnits(Math.max(0, effectiveSoldUnits - 1))
                   }
                   className="h-8 px-2.5 rounded-xl bg-[#222424] hover:bg-[#2c2e2e] border border-white/10 text-xs font-bold text-[#c8c6c5] flex items-center gap-1 cursor-pointer transition-colors"
                 >
@@ -225,7 +289,7 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    onUpdateSoldUnits(soldUnitsCount + 1);
+                    handleSetSoldUnits(effectiveSoldUnits + 1);
                     onShowToast('✨ +1 Mueble vendido sumado a la mesa minimalista');
                   }}
                   className="h-8 px-3 rounded-xl bg-[#e87a50] hover:bg-[#f0855c] text-[#1f0800] text-xs font-bold flex items-center gap-1 cursor-pointer shadow-sm transition-colors"
@@ -233,6 +297,15 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
                   <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>Sumar Venta</span>
                 </button>
+                {onGoToPresupuesto && (
+                  <button
+                    type="button"
+                    onClick={onGoToPresupuesto}
+                    className="h-8 px-3 rounded-xl bg-[#261c18] hover:bg-[#33241e] border border-[#e87a50]/50 text-[#ffb59b] text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span>📐 Nuevo Presupuesto</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -256,7 +329,7 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
                   />
                 </clipPath>
 
-                {/* Warm Copper / Carvalho Wood Gradient */}
+                {/* Warm Reference Wood Palette Gradient (#59230F -> #8C3F23 -> #BD9774) */}
                 <linearGradient
                   id="nightstandCopperFill"
                   x1="0"
@@ -264,14 +337,14 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
                   x2="0"
                   y2="0"
                 >
-                  <stop offset="0%" stopColor="#c85a28" />
-                  <stop offset="55%" stopColor="#e87a50" />
-                  <stop offset="100%" stopColor="#ffb59b" />
+                  <stop offset="0%" stopColor="#59230F" />
+                  <stop offset="52%" stopColor="#8C3F23" />
+                  <stop offset="100%" stopColor="#BD9774" />
                 </linearGradient>
               </defs>
 
-              {/* LAYER 1: Unfilled Minimalist Nightstand Silhouette (Dark Wireframe Base) */}
-              <g stroke="#3a3d3d" strokeWidth="2.2" fill="#1c1f1f">
+              {/* LAYER 1: Unfilled Minimalist Nightstand Silhouette (Olive/Mahogany Wireframe Base) */}
+              <g stroke="#BD9774" strokeOpacity="0.35" strokeWidth="2.2" fill="#2A160D">
                 {/* Left Nordic Splayed Leg */}
                 <polygon points="36,96 45,96 35,144 26,144" />
                 {/* Right Nordic Splayed Leg */}
@@ -404,8 +477,8 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
               onClick={() => {
                 const s = Math.max(0, parseInt(soldInput, 10) || 0);
                 const g = Math.max(1, parseInt(goalInput, 10) || 20);
-                onUpdateSoldUnits(s);
-                onUpdateSalesGoal(g);
+                handleSetSoldUnits(s);
+                handleSetGoalUnits(g);
                 setShowGoalEditor(false);
                 onShowToast(`Meta actualizada: ${s} / ${g} mesas vendidas`);
               }}
@@ -530,7 +603,7 @@ export const ScreenInicio: React.FC<ScreenInicioProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => onGoToFlete(order.id)}
+                      onClick={() => handleOpenFreight(order.id)}
                       className="h-8 rounded-xl bg-[#271e1a] hover:bg-[#332620] border border-[#e87a50]/40 text-[11px] font-bold text-[#ffb59b] flex items-center justify-center gap-1 cursor-pointer transition-colors"
                     >
                       <Truck className="w-3.5 h-3.5 text-[#e87a50]" />

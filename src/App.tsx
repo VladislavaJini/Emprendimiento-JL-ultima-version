@@ -26,6 +26,9 @@ import {
   CheckCircle2,
   Home,
   ClipboardList,
+  Moon,
+  Sun,
+  ZoomIn,
 } from 'lucide-react';
 import {
   ScreenId,
@@ -60,10 +63,10 @@ import { ScreenCalculadorFilo } from './components/ScreenCalculadorFilo';
 import { ScreenInventario } from './components/ScreenInventario';
 import { ScreenOperaciones } from './components/ScreenOperaciones';
 import { ScreenLogistica } from './components/ScreenLogistica';
-import { ScreenAtelierCAD } from './components/ScreenAtelierCAD';
 import { ScreenCatalogo } from './components/ScreenCatalogo';
 import { ScreenInicio } from './components/ScreenInicio';
 import { ScreenPedidos } from './components/ScreenPedidos';
+import { ScreenPresupuesto } from './components/ScreenPresupuesto';
 import {
   saveDocToCloud,
   subscribeToWorkshopState,
@@ -80,6 +83,7 @@ const SCREEN_TABS: {
   icon: React.FC<{ className?: string }>;
 }[] = [
   { id: 'inicio', label: 'Inicio (Panel Principal)', icon: Home },
+  { id: 'presupuesto', label: 'Nuevo Presupuesto (Cubo)', icon: Box },
   { id: 'guillotina', label: 'Guillotina 2D (Melamina)', icon: Scissors },
   { id: 'fondo', label: 'Cortes Fondo', icon: Layers },
   { id: 'filo', label: 'Calculador de Filo', icon: Disc },
@@ -88,7 +92,6 @@ const SCREEN_TABS: {
   { id: 'logistica', label: 'Logística & Fletes', icon: Truck },
   { id: 'pedidos', label: 'Pedidos & En Curso', icon: ClipboardList },
   { id: 'operaciones', label: 'Gestión & Finanzas', icon: Wallet },
-  { id: 'cad', label: 'Atelier CAD 3D', icon: Box },
   { id: 'gamificacion', label: 'Gamificación Atelier', icon: Trophy },
 ];
 
@@ -101,9 +104,17 @@ const BOTTOM_NAV_ITEMS: {
   { id: 'inicio', label: 'Inicio', emoji: '🏠', icon: Home },
   { id: 'guillotina', label: 'Cortes', emoji: '🪚', icon: Scissors },
   { id: 'inventario', label: 'Inventario', emoji: '📦', icon: Package },
+  { id: 'catalogo', label: 'Catálogo', emoji: '📖', icon: BookOpen },
   { id: 'logistica', label: 'Flete', emoji: '🚚', icon: Truck },
   { id: 'pedidos', label: 'Pedidos', emoji: '📋', icon: ClipboardList },
 ];
+
+const DEFAULT_CUSTOM_PALETTE = {
+  dot1Bg: '#BD9774',
+  dot2Card: '#59230F',
+  dot3Primary: '#8C3F23',
+  dot4Subcard: '#4A4327',
+};
 
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<ScreenId>('inicio');
@@ -126,6 +137,67 @@ export default function App() {
     }
     return fallback;
   };
+
+  // UI Theme & Accessibility Modes (Dark Mode + Modo Gente Mayor Zoom + 4-Dot Custom Palette)
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() =>
+    getStored('mjl_dark_mode', false)
+  );
+  const [isSeniorMode, setIsSeniorMode] = useState<boolean>(() =>
+    getStored('mjl_senior_mode', false)
+  );
+  const [customPalette, setCustomPalette] = useState<{
+    dot1Bg: string;
+    dot2Card: string;
+    dot3Primary: string;
+    dot4Subcard: string;
+  }>(() => getStored('mjl_custom_palette', DEFAULT_CUSTOM_PALETTE));
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDarkMode) {
+      root.classList.add('dark-mode');
+      root.style.removeProperty('--mjl-app-bg');
+      root.style.removeProperty('--mjl-outer-bg');
+      root.style.removeProperty('--mjl-header-bg');
+      root.style.removeProperty('--mjl-card-bg');
+      root.style.removeProperty('--mjl-drawer-bg');
+      root.style.removeProperty('--mjl-nav-bg');
+      root.style.removeProperty('--mjl-primary-btn');
+      root.style.removeProperty('--mjl-primary-btn-hover');
+      root.style.removeProperty('--mjl-subcard-bg');
+      root.style.removeProperty('--mjl-olive');
+      root.style.removeProperty('--mjl-accent-camel');
+    } else {
+      root.classList.remove('dark-mode');
+      root.style.setProperty('--mjl-app-bg', customPalette.dot1Bg);
+      root.style.setProperty('--mjl-outer-bg', customPalette.dot1Bg);
+      root.style.setProperty('--mjl-accent-camel', customPalette.dot1Bg);
+      root.style.setProperty('--mjl-header-bg', customPalette.dot2Card);
+      root.style.setProperty('--mjl-card-bg', customPalette.dot2Card);
+      root.style.setProperty('--mjl-drawer-bg', customPalette.dot2Card);
+      root.style.setProperty('--mjl-nav-bg', customPalette.dot2Card);
+      root.style.setProperty('--mjl-primary-btn', customPalette.dot3Primary);
+      root.style.setProperty('--mjl-primary-btn-hover', customPalette.dot3Primary);
+      root.style.setProperty('--mjl-subcard-bg', customPalette.dot4Subcard);
+      root.style.setProperty('--mjl-olive', customPalette.dot4Subcard);
+    }
+    try {
+      localStorage.setItem('mjl_dark_mode', JSON.stringify(isDarkMode));
+      localStorage.setItem('mjl_custom_palette', JSON.stringify(customPalette));
+    } catch {}
+  }, [isDarkMode, customPalette]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isSeniorMode) {
+      root.classList.add('senior-mode');
+    } else {
+      root.classList.remove('senior-mode');
+    }
+    try {
+      localStorage.setItem('mjl_senior_mode', JSON.stringify(isSeniorMode));
+    } catch {}
+  }, [isSeniorMode]);
 
   // State: Guillotina 2D (Melamina 18mm)
   const [boards, setBoards] = useState<MelaminaBoard[]>(() =>
@@ -361,13 +433,13 @@ export default function App() {
         if (typeof cloudData.extraBillingArs === 'number') {
           setExtraBillingArs(cloudData.extraBillingArs);
         }
-        if (typeof cloudData.salesGoalUnits === 'number') {
+        if (typeof cloudData.salesGoalUnits === 'number' && Number.isFinite(cloudData.salesGoalUnits)) {
           setSalesGoalUnits(cloudData.salesGoalUnits);
         }
-        if (typeof cloudData.extraSoldUnits === 'number') {
+        if (typeof cloudData.extraSoldUnits === 'number' && Number.isFinite(cloudData.extraSoldUnits)) {
           setExtraSoldUnits(cloudData.extraSoldUnits);
         }
-        if (typeof cloudData.freightRatePerKm === 'number') {
+        if (typeof cloudData.freightRatePerKm === 'number' && Number.isFinite(cloudData.freightRatePerKm)) {
           setFreightRatePerKm(cloudData.freightRatePerKm);
         }
         setTimeout(() => {
@@ -1208,40 +1280,51 @@ export default function App() {
       {/* ANDROID MOBILE DEVICE CONTAINER */}
       <div className="w-full max-w-[420px] min-h-screen bg-[#121414] text-[#e3e2e2] flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.85)] sm:border-x sm:border-white/10">
         {/* ANDROID SYSTEM STATUS BAR */}
-        <div className="sticky top-0 z-40 bg-[#121414] px-4 pt-1.5 pb-1 flex items-center justify-between text-[11px] font-semibold text-[#c8c6c5] select-none">
+        <div
+          className="sticky top-0 z-40 px-4 pt-1.5 pb-1 flex items-center justify-between text-[11px] font-semibold text-[#EAD6C0] select-none"
+          style={{ backgroundColor: 'var(--mjl-header-bg)' }}
+        >
           <div className="flex items-center gap-1.5 tabular-nums">
             <span>15:04</span>
-            <span className="text-[9px] text-[#ffb59b] font-bold">J&amp;L</span>
+            <span className="text-[9px] text-[#BD9774] font-bold">J&amp;L</span>
           </div>
           <div className="flex items-center gap-1.5">
+            {isSeniorMode && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#4A4327] text-[#F0D9C0] font-bold">
+                ZOOM +
+              </span>
+            )}
             <Signal className="w-3 h-3" />
             <span className="text-[10px] font-bold">5G</span>
             <Wifi className="w-3 h-3" />
             <div className="flex items-center gap-0.5 tabular-nums">
-              <BatteryCharging className="w-3.5 h-3.5 text-[#ffb59b]" />
+              <BatteryCharging className="w-3.5 h-3.5 text-[#BD9774]" />
               <span className="text-[10px]">94%</span>
             </div>
           </div>
         </div>
 
         {/* APP HEADER BAR (Navigation strictly via Hamburger menu) */}
-        <header className="sticky top-[24px] z-30 bg-[#121414]/95 backdrop-blur-md border-b border-white/5 px-3.5 py-2.5">
+        <header
+          className="sticky top-[24px] z-30 backdrop-blur-md border-b border-[#BD9774]/30 px-3.5 py-2.5 shadow-md"
+          style={{ backgroundColor: 'var(--mjl-header-bg)' }}
+        >
           <div className="flex items-center justify-between gap-2">
             {/* Left: Hamburger Button + Brand Lockup */}
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 onClick={() => setDrawerOpen(true)}
                 aria-label="Abrir menú de navegación"
-                className="w-10 h-10 rounded-xl bg-[#1a1c1c] hover:bg-[#252727] active:bg-[#292a2a] border border-white/10 flex items-center justify-center text-[#e3e2e2] transition-colors cursor-pointer shrink-0"
+                className="w-10 h-10 rounded-xl bg-[#4A4327] hover:bg-[#585030] active:scale-95 border border-[#BD9774]/40 flex items-center justify-center text-[#FFF9F2] transition-all cursor-pointer shrink-0 shadow-sm"
               >
                 <Menu className="w-5 h-5" />
               </button>
 
               <div className="min-w-0">
-                <div className="text-[17px] font-bold font-display text-white leading-tight truncate">
+                <div className="text-[20px] font-bold font-display text-white leading-tight truncate tracking-wide">
                   Muebles J&amp;L
                 </div>
-                <div className="flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wider text-[#ffb59b] mt-0.5 leading-tight">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wider text-[#F0D9C0] mt-0.5 leading-tight">
                   <span
                     className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                       isCloudOnline ? 'bg-emerald-400' : 'bg-amber-400'
@@ -1347,6 +1430,7 @@ export default function App() {
               extraSoldUnits={extraSoldUnits}
               onUpdateExtraSoldUnits={setExtraSoldUnits}
               onGoToPedidos={() => setActiveScreen('pedidos')}
+              onGoToPresupuesto={() => setActiveScreen('presupuesto')}
               onSelectOrderForFreight={(orderId) => {
                 setSelectedFreightOrderId(orderId);
                 setActiveScreen('logistica');
@@ -1354,6 +1438,13 @@ export default function App() {
               onMarkOrderDelivered={(orderId) =>
                 handleUpdateOrderStage(orderId, 'entregado')
               }
+              onShowToast={showToast}
+            />
+          )}
+
+          {activeScreen === 'presupuesto' && (
+            <ScreenPresupuesto
+              onBack={() => setActiveScreen('inicio')}
               onShowToast={showToast}
             />
           )}
@@ -1538,21 +1629,6 @@ export default function App() {
             />
           )}
 
-          {activeScreen === 'cad' && (
-            <ScreenAtelierCAD
-              design={activeDesign}
-              onUpdateDesignTextures={handleUpdateDesignTextures}
-              onGoToCatalogo={() => setActiveScreen('catalogo')}
-              onLaunchToProduction={() => {
-                setActiveScreen('guillotina');
-                showToast(
-                  `${activeDesign.name} (${activeDesign.code}) enviado a Guillotina 2D`
-                );
-              }}
-              onShowToast={showToast}
-            />
-          )}
-
           {activeScreen === 'catalogo' && (
             <ScreenCatalogo
               designs={designs}
@@ -1574,7 +1650,6 @@ export default function App() {
               cutPieces={cutPieces}
               predefinedCuts={predefinedCuts}
               onGoToInventario={() => setActiveScreen('inventario')}
-              onOpenCadViewer={() => setActiveScreen('cad')}
               onShowToast={showToast}
             />
           )}
@@ -1583,7 +1658,7 @@ export default function App() {
         {/* FIXED BOTTOM NAVIGATION BAR (68px height, high z-index, strict anti-overlap & stopPropagation) */}
         <nav
           onClick={(e) => e.stopPropagation()}
-          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] h-[68px] z-40 bg-[#121414]/95 backdrop-blur-md border-t border-white/10 px-2 flex items-center justify-around select-none shadow-[0_-8px_24px_rgba(0,0,0,0.75)]"
+          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] h-[68px] z-40 bg-[#121414]/95 backdrop-blur-md border-t border-white/10 px-1.5 grid grid-cols-6 gap-1 items-center select-none shadow-[0_-8px_24px_rgba(0,0,0,0.75)]"
         >
           {BOTTOM_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
@@ -1597,22 +1672,22 @@ export default function App() {
                   setActiveScreen(item.id);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2.5 rounded-xl transition-all cursor-pointer min-w-[62px] ${
+                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-xl transition-all cursor-pointer min-w-0 ${
                   isActive
                     ? 'bg-[#e87a50]/15 text-[#ffb59b] border border-[#e87a50]/40 scale-105'
                     : 'text-[#a1a1a1] hover:text-white active:scale-95'
                 }`}
               >
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] leading-none">{item.emoji}</span>
+                <div className="flex items-center gap-0.5">
+                  <span className="text-[10px] leading-none">{item.emoji}</span>
                   <Icon
-                    className={`w-4 h-4 ${
+                    className={`w-3.5 h-3.5 ${
                       isActive ? 'text-[#e87a50] stroke-[2.4]' : 'stroke-[1.8]'
                     }`}
                   />
                 </div>
                 <span
-                  className={`text-[10px] leading-tight tracking-tight ${
+                  className={`text-[9.5px] leading-tight tracking-tight truncate w-full text-center ${
                     isActive ? 'font-extrabold text-[#ffb59b]' : 'font-semibold'
                   }`}
                 >
@@ -1627,27 +1702,134 @@ export default function App() {
         {drawerOpen && (
           <div className="fixed inset-0 z-50 flex justify-center">
             <div className="w-full max-w-[420px] h-full bg-black/75 backdrop-blur-xs flex relative">
-              <div className="w-76 max-w-[84%] bg-[#161818] border-r border-white/10 h-full p-4 flex flex-col justify-between overflow-y-auto">
+              <div
+                className="w-80 max-w-[86%] border-r border-[#BD9774]/35 h-full p-4 flex flex-col justify-between overflow-y-auto shadow-2xl"
+                style={{ backgroundColor: 'var(--mjl-drawer-bg)' }}
+              >
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-base font-bold font-display text-white">
+                      <div className="text-xl font-bold font-display text-white tracking-wide">
                         Muebles J&amp;L
                       </div>
-                      <div className="text-[11px] text-[#ffb59b] font-semibold">
+                      <div className="text-[11px] text-[#F0D9C0] font-semibold">
                         Menú de Taller • Villa Luzuriaga
+                      </div>
+                      {/* 4 Interactive Color Picker Dots (#BD9774, #59230F, #8C3F23, #4A4327) */}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        {/* DOT 1: Fondo & Acento */}
+                        <label
+                          className="w-5 h-5 rounded-full border-2 border-white/60 hover:scale-110 transition-transform cursor-pointer relative shadow-sm flex items-center justify-center"
+                          style={{ backgroundColor: customPalette.dot1Bg }}
+                          title="Punto 1: Cambiar color de Fondo y Acentos"
+                        >
+                          <input
+                            type="color"
+                            value={customPalette.dot1Bg}
+                            onChange={(e) => {
+                              setIsDarkMode(false);
+                              setCustomPalette((p) => ({
+                                ...p,
+                                dot1Bg: e.target.value,
+                              }));
+                            }}
+                            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                          />
+                        </label>
+
+                        {/* DOT 2: Tarjetas & Cabecera */}
+                        <label
+                          className="w-5 h-5 rounded-full border-2 border-white/60 hover:scale-110 transition-transform cursor-pointer relative shadow-sm flex items-center justify-center"
+                          style={{ backgroundColor: customPalette.dot2Card }}
+                          title="Punto 2: Cambiar color de Tarjetas y Cabecera"
+                        >
+                          <input
+                            type="color"
+                            value={customPalette.dot2Card}
+                            onChange={(e) => {
+                              setIsDarkMode(false);
+                              setCustomPalette((p) => ({
+                                ...p,
+                                dot2Card: e.target.value,
+                              }));
+                            }}
+                            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                          />
+                        </label>
+
+                        {/* DOT 3: Botones Principales */}
+                        <label
+                          className="w-5 h-5 rounded-full border-2 border-white/60 hover:scale-110 transition-transform cursor-pointer relative shadow-sm flex items-center justify-center"
+                          style={{ backgroundColor: customPalette.dot3Primary }}
+                          title="Punto 3: Cambiar color de Botones Principales"
+                        >
+                          <input
+                            type="color"
+                            value={customPalette.dot3Primary}
+                            onChange={(e) => {
+                              setIsDarkMode(false);
+                              setCustomPalette((p) => ({
+                                ...p,
+                                dot3Primary: e.target.value,
+                              }));
+                            }}
+                            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                          />
+                        </label>
+
+                        {/* DOT 4: Sub-tarjetas & Recuadros */}
+                        <label
+                          className="w-5 h-5 rounded-full border-2 border-white/60 hover:scale-110 transition-transform cursor-pointer relative shadow-sm flex items-center justify-center"
+                          style={{ backgroundColor: customPalette.dot4Subcard }}
+                          title="Punto 4: Cambiar color de Sub-tarjetas y Recuadros"
+                        >
+                          <input
+                            type="color"
+                            value={customPalette.dot4Subcard}
+                            onChange={(e) => {
+                              setIsDarkMode(false);
+                              setCustomPalette((p) => ({
+                                ...p,
+                                dot4Subcard: e.target.value,
+                              }));
+                            }}
+                            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                          />
+                        </label>
+
+                        <span className="text-[10px] text-[#EAD6C0] font-semibold ml-1">
+                          Paleta Atelier
+                        </span>
+
+                        {(customPalette.dot1Bg !== DEFAULT_CUSTOM_PALETTE.dot1Bg ||
+                          customPalette.dot2Card !== DEFAULT_CUSTOM_PALETTE.dot2Card ||
+                          customPalette.dot3Primary !== DEFAULT_CUSTOM_PALETTE.dot3Primary ||
+                          customPalette.dot4Subcard !== DEFAULT_CUSTOM_PALETTE.dot4Subcard) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomPalette(DEFAULT_CUSTOM_PALETTE);
+                              setIsDarkMode(false);
+                              showToast('🎨 Paleta original restaurada');
+                            }}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-black/30 hover:bg-black/50 text-[#F0D9C0] border border-white/20 cursor-pointer"
+                            title="Restaurar los 4 colores originales"
+                          >
+                            ↺ Restaurar
+                          </button>
+                        )}
                       </div>
                     </div>
                     <button
                       onClick={() => setDrawerOpen(false)}
-                      className="p-1.5 rounded-lg bg-[#222424] text-[#c8c6c5] hover:text-white cursor-pointer"
+                      className="p-1.5 rounded-lg bg-[#4A4327] text-[#F0D9C0] hover:text-white border border-[#BD9774]/30 cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
                   <div className="space-y-1">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#a1a1a1] px-2 pb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#D5BC9F] px-2 pb-1">
                       Ventanas del Taller ({SCREEN_TABS.length})
                     </div>
                     {SCREEN_TABS.map((tab, i) => {
@@ -1663,16 +1845,16 @@ export default function App() {
                           }}
                           className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                             active
-                              ? 'bg-[#e87a50] text-[#280b00]'
-                              : 'text-[#e3e2e2] hover:bg-white/5'
+                              ? 'bg-[#8C3F23] text-white border border-[#BD9774]/50 shadow-sm'
+                              : 'text-[#F7EFE6] hover:bg-white/10'
                           }`}
                         >
                           <span className="flex items-center gap-2.5">
                             <Icon className="w-4 h-4" />
                             <span>{tab.label}</span>
                           </span>
-                          <span className="text-[10px] opacity-70 tabular-nums">
-                            0{i + 1}
+                          <span className="text-[10px] opacity-75 tabular-nums">
+                            {String(i + 1).padStart(2, '0')}
                           </span>
                         </button>
                       );
@@ -1680,15 +1862,97 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-white/10 space-y-2.5 mt-4">
+                {/* BOTTOM SECTION: Install + 2 New Accessibility & Theme Buttons at the very bottom */}
+                <div className="pt-3 border-t border-[#BD9774]/25 space-y-2 mt-4">
                   <button
                     onClick={handleInstallAndroidApp}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#2c1d17] border border-[#e87a50]/50 text-xs font-bold text-[#ffb59b] flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-2 px-3 rounded-xl bg-[#4A4327]/70 hover:bg-[#4A4327] border border-[#BD9774]/40 text-xs font-bold text-[#F0D9C0] flex items-center justify-center gap-2 cursor-pointer transition-colors"
                   >
                     <Download className="w-4 h-4" />
                     <span>Instalar en Celular Android</span>
                   </button>
-                  <div className="text-[10px] text-center text-[#717171]">
+
+                  <div className="pt-1 space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#D5BC9F] px-1">
+                      Visualización y Accesibilidad
+                    </div>
+
+                    {/* BOTÓN 1: ACTIVAR / DESACTIVAR MODO OSCURO */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDarkMode((prev) => {
+                          const next = !prev;
+                          showToast(
+                            next
+                              ? '🌙 Modo Oscuro activado'
+                              : '☀️ Paleta Cálida de Referencia activada'
+                          );
+                          return next;
+                        });
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                        isDarkMode
+                          ? 'bg-[#8C3F23] border-[#BD9774] text-white shadow-md'
+                          : 'bg-[#59230F] hover:bg-[#6D2E16] border-[#BD9774]/40 text-[#F0D9C0]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {isDarkMode ? (
+                          <Moon className="w-4 h-4 text-[#BD9774]" />
+                        ) : (
+                          <Sun className="w-4 h-4 text-[#BD9774]" />
+                        )}
+                        <span>Modo Oscuro</span>
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-md font-extrabold uppercase ${
+                          isDarkMode
+                            ? 'bg-[#21110A] text-[#BD9774]'
+                            : 'bg-[#4A4327] text-[#EAD6C0]'
+                        }`}
+                      >
+                        {isDarkMode ? 'ACTIVO' : 'OFF'}
+                      </span>
+                    </button>
+
+                    {/* BOTÓN 2: MODO PARA GENTE MAYOR (ZOOM GENERAL DE LA APLICACIÓN) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSeniorMode((prev) => {
+                          const next = !prev;
+                          showToast(
+                            next
+                              ? '🔍 Modo Gente Mayor activado (Zoom general aumentado)'
+                              : '🔍 Modo Gente Mayor desactivado (Tamaño estándar)'
+                          );
+                          return next;
+                        });
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                        isSeniorMode
+                          ? 'bg-[#4A4327] border-[#BD9774] text-white shadow-md'
+                          : 'bg-[#59230F] hover:bg-[#6D2E16] border-[#BD9774]/40 text-[#F0D9C0]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <ZoomIn className="w-4 h-4 text-[#BD9774]" />
+                        <span>Modo Gente Mayor (Zoom +)</span>
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-md font-extrabold uppercase ${
+                          isSeniorMode
+                            ? 'bg-[#8C3F23] text-white'
+                            : 'bg-[#4A4327] text-[#EAD6C0]'
+                        }`}
+                      >
+                        {isSeniorMode ? 'ACTIVO' : 'OFF'}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="text-[10px] text-center text-[#D5BC9F]/80 pt-1">
                     Taller Central • Garibaldi y Triunvirato
                   </div>
                 </div>

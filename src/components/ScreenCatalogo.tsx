@@ -7,6 +7,9 @@ import {
   X,
   Wrench,
   Truck,
+  Camera,
+  ImagePlus,
+  Trash2,
 } from 'lucide-react';
 import {
   FurnitureDesign,
@@ -38,12 +41,46 @@ interface ScreenCatalogoProps {
     pieces: Omit<CutPiece, 'id' | 'numberLabel'>[]
   ) => void;
   onSendDesignToFreight?: (design: FurnitureDesign) => void;
+  onSendToFreight?: (design: FurnitureDesign) => void;
   inventoryItems: InventoryItem[];
   cutPieces?: CutPiece[];
   predefinedCuts?: PredefinedCut[];
   onGoToInventario: () => void;
-  onOpenCadViewer?: () => void;
   onShowToast: (msg: string) => void;
+}
+
+function compressImageToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxW = 480;
+        const maxH = 360;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxW || height > maxH) {
+          const ratio = Math.min(maxW / width, maxH / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(String(ev.target?.result || ''));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+      img.src = String(ev.target?.result || '');
+    };
+    reader.onerror = () => reject(new Error('Error al leer el archivo'));
+    reader.readAsDataURL(file);
+  });
 }
 
 export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
@@ -53,6 +90,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
   onUpdateDesign,
   onLoadMissingPiecesToCutter,
   onSendDesignToFreight,
+  onSendToFreight,
   inventoryItems = [],
   cutPieces = [],
   predefinedCuts = [],
@@ -72,6 +110,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
   const [editPriceArs, setEditPriceArs] = useState('85000');
   const [editDrawerCount, setEditDrawerCount] = useState<number>(1);
   const [editDrawersConfig, setEditDrawersConfig] = useState<DrawerSpec[]>([]);
+  const [editThumbnailUrl, setEditThumbnailUrl] = useState<string>('');
   const [geometricError, setGeometricError] = useState<string | null>(null);
 
   // New design modal state
@@ -85,6 +124,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
   const [newDrawersConfig, setNewDrawersConfig] = useState<DrawerSpec[]>(() =>
     generateDefaultDrawers(1, 450, 550, 380)
   );
+  const [newThumbnailUrl, setNewThumbnailUrl] = useState<string>('');
   const [newGeometricError, setNewGeometricError] = useState<string | null>(
     null
   );
@@ -236,6 +276,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
         safeD
       )
     );
+    setEditThumbnailUrl(design?.thumbnailUrl || '');
     setGeometricError(null);
   };
 
@@ -276,6 +317,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
         drawersConfig: editDrawersConfig,
         bomItems: getDrawerBomItems(editDrawersConfig),
         cutPiecesCount: 6 + editDrawerCount * 4,
+        thumbnailUrl: editThumbnailUrl || undefined,
       });
     }
     setEditingDesign(null);
@@ -327,9 +369,11 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
       drawerCount: newDrawerCount,
       drawersConfig: newDrawersConfig,
       bomItems: getDrawerBomItems(newDrawersConfig),
+      thumbnailUrl: newThumbnailUrl || undefined,
     });
 
     setNewTitle('');
+    setNewThumbnailUrl('');
     setShowNewDesignModal(false);
     onShowToast(`Nuevo diseño creado con ${newDrawerCount} cajones`);
   };
@@ -348,6 +392,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
             setNewPriceArs('85000');
             setNewDrawerCount(1);
             setNewDrawersConfig(generateDefaultDrawers(1, 450, 550, 380));
+            setNewThumbnailUrl('');
             setNewGeometricError(null);
             setShowNewDesignModal(true);
           }}
@@ -413,116 +458,156 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
               key={design?.id || idx}
               className="atelier-card rounded-2xl p-3 flex flex-col justify-between bg-[#161818] border border-white/10 hover:border-white/20 transition-all shadow-md group"
             >
-              {/* Product Visual Studio Render */}
+              {/* Product Visual Studio Render OR Custom Uploaded Image Thumbnail */}
               <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-[#121414] border border-white/5 flex items-center justify-center p-2 relative">
-                <svg
-                  viewBox="0 0 160 140"
-                  className="w-full h-full object-contain filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]"
+                {design?.thumbnailUrl ? (
+                  <img
+                    src={design.thumbnailUrl}
+                    alt={design?.catalogTitle || design?.name || 'Mueble'}
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                ) : (
+                  <svg
+                    viewBox="0 0 160 140"
+                    className="w-full h-full object-contain filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]"
+                  >
+                    <defs>
+                      <linearGradient
+                        id={`bodyWood-${idx}`}
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#d9a877" />
+                        <stop offset="100%" stopColor="#bf8e5c" />
+                      </linearGradient>
+                      <linearGradient
+                        id={`drawerFront-${idx}`}
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#e2b485" />
+                        <stop offset="100%" stopColor="#c79664" />
+                      </linearGradient>
+                      <linearGradient
+                        id={`legWood-${idx}`}
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#ad7a4b" />
+                        <stop offset="100%" stopColor="#87582d" />
+                      </linearGradient>
+                    </defs>
+
+                    <ellipse
+                      cx="80"
+                      cy="126"
+                      rx="55"
+                      ry="7"
+                      fill="rgba(0,0,0,0.4)"
+                    />
+
+                    <polygon points="46,75 52,75 42,122 36,122" fill="#6b4421" />
+                    <polygon
+                      points="108,75 114,75 124,122 118,122"
+                      fill="#6b4421"
+                    />
+                    <polygon
+                      points="38,76 46,76 34,124 26,124"
+                      fill={`url(#legWood-${idx})`}
+                      stroke="#593717"
+                      strokeWidth="0.8"
+                    />
+                    <polygon
+                      points="114,76 122,76 134,124 126,124"
+                      fill={`url(#legWood-${idx})`}
+                      stroke="#593717"
+                      strokeWidth="0.8"
+                    />
+
+                    <rect
+                      x="20"
+                      y="18"
+                      width="120"
+                      height="8"
+                      rx="1.5"
+                      fill="#e5b88a"
+                      stroke="#593717"
+                      strokeWidth="1"
+                    />
+
+                    <rect
+                      x="24"
+                      y="25"
+                      width="112"
+                      height="54"
+                      rx="2"
+                      fill={`url(#bodyWood-${idx})`}
+                      stroke="#593717"
+                      strokeWidth="1.2"
+                    />
+
+                    <rect
+                      x="30"
+                      y="31"
+                      width="100"
+                      height="42"
+                      rx="1.5"
+                      fill="#181512"
+                    />
+
+                    <rect
+                      x="32"
+                      y="33"
+                      width="96"
+                      height="38"
+                      rx="1.2"
+                      fill={`url(#drawerFront-${idx})`}
+                      stroke="#663f1a"
+                      strokeWidth="0.8"
+                    />
+
+                    <circle cx="80" cy="52" r="3.2" fill="#2b1a0e" />
+                    <circle cx="79.3" cy="51.3" r="1.2" fill="#4d321d" />
+                  </svg>
+                )}
+
+                {/* Direct Thumbnail Image Upload Button (top-left of card thumbnail) */}
+                <label
+                  title="Subir imagen personalizada como miniatura"
+                  className="absolute top-1.5 left-1.5 bg-black/75 hover:bg-[#8C3F23] border border-white/20 text-[#ffb59b] hover:text-white text-[9px] font-bold px-1.5 py-1 rounded flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
                 >
-                  <defs>
-                    <linearGradient
-                      id={`bodyWood-${idx}`}
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#d9a877" />
-                      <stop offset="100%" stopColor="#bf8e5c" />
-                    </linearGradient>
-                    <linearGradient
-                      id={`drawerFront-${idx}`}
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#e2b485" />
-                      <stop offset="100%" stopColor="#c79664" />
-                    </linearGradient>
-                    <linearGradient
-                      id={`legWood-${idx}`}
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#ad7a4b" />
-                      <stop offset="100%" stopColor="#87582d" />
-                    </linearGradient>
-                  </defs>
-
-                  <ellipse
-                    cx="80"
-                    cy="126"
-                    rx="55"
-                    ry="7"
-                    fill="rgba(0,0,0,0.4)"
+                  <Camera className="w-3 h-3" />
+                  <span>Foto</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const dataUrl = await compressImageToDataUrl(file);
+                        if (onUpdateDesign) {
+                          onUpdateDesign(design.id, { thumbnailUrl: dataUrl });
+                          onShowToast(
+                            `📷 Miniatura actualizada para ${
+                              design.catalogTitle || design.name
+                            }`
+                          );
+                        }
+                      } catch {
+                        onShowToast('No se pudo procesar la imagen seleccionada');
+                      }
+                      e.target.value = '';
+                    }}
                   />
-
-                  <polygon points="46,75 52,75 42,122 36,122" fill="#6b4421" />
-                  <polygon
-                    points="108,75 114,75 124,122 118,122"
-                    fill="#6b4421"
-                  />
-                  <polygon
-                    points="38,76 46,76 34,124 26,124"
-                    fill={`url(#legWood-${idx})`}
-                    stroke="#593717"
-                    strokeWidth="0.8"
-                  />
-                  <polygon
-                    points="114,76 122,76 134,124 126,124"
-                    fill={`url(#legWood-${idx})`}
-                    stroke="#593717"
-                    strokeWidth="0.8"
-                  />
-
-                  <rect
-                    x="20"
-                    y="18"
-                    width="120"
-                    height="8"
-                    rx="1.5"
-                    fill="#e5b88a"
-                    stroke="#593717"
-                    strokeWidth="1"
-                  />
-
-                  <rect
-                    x="24"
-                    y="25"
-                    width="112"
-                    height="54"
-                    rx="2"
-                    fill={`url(#bodyWood-${idx})`}
-                    stroke="#593717"
-                    strokeWidth="1.2"
-                  />
-
-                  <rect
-                    x="30"
-                    y="31"
-                    width="100"
-                    height="42"
-                    rx="1.5"
-                    fill="#181512"
-                  />
-
-                  <rect
-                    x="32"
-                    y="33"
-                    width="96"
-                    height="38"
-                    rx="1.2"
-                    fill={`url(#drawerFront-${idx})`}
-                    stroke="#663f1a"
-                    strokeWidth="0.8"
-                  />
-
-                  <circle cx="80" cy="52" r="3.2" fill="#2b1a0e" />
-                  <circle cx="79.3" cy="51.3" r="1.2" fill="#4d321d" />
-                </svg>
+                </label>
 
                 <span className="absolute top-1.5 right-1.5 bg-black/70 border border-white/10 text-[#ffb59b] text-[9px] font-bold px-1.5 py-0.5 rounded tabular-nums">
                   {drwCount} {drwCount === 1 ? 'caj.' : 'caj.'}
@@ -582,6 +667,8 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                 onClick={() => {
                   if (onSendDesignToFreight) {
                     onSendDesignToFreight(design);
+                  } else if (onSendToFreight) {
+                    onSendToFreight(design);
                   }
                 }}
                 className="w-full h-8 mt-2 rounded-lg bg-[#271e1a] hover:bg-[#342620] border border-[#e87a50]/60 text-[#ffb59b] font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
@@ -655,6 +742,65 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                 </div>
 
                 <form onSubmit={handleSaveEdit} className="space-y-3.5">
+                  {/* Custom Thumbnail Image Uploader inside Edit Modal */}
+                  <div className="p-3 rounded-xl bg-[#222424] border border-white/10 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {editThumbnailUrl ? (
+                        <img
+                          src={editThumbnailUrl}
+                          alt="Miniatura"
+                          className="w-12 h-12 rounded-lg object-cover border border-white/20 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-[#141616] border border-white/10 flex items-center justify-center text-[#ffb59b] shrink-0">
+                          <ImagePlus className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate">
+                          Miniatura del Mueble
+                        </div>
+                        <div className="text-[10px] text-[#c8c6c5] truncate">
+                          {editThumbnailUrl
+                            ? 'Imagen personalizada cargada'
+                            : 'Ilustración vectorial por defecto'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <label className="px-2.5 py-1.5 rounded-lg bg-[#e87a50] text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Subir Foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const dataUrl = await compressImageToDataUrl(file);
+                              setEditThumbnailUrl(dataUrl);
+                            } catch {
+                              onShowToast('Error al cargar imagen');
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {editThumbnailUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setEditThumbnailUrl('')}
+                          title="Quitar imagen personalizada"
+                          className="p-1.5 rounded-lg bg-[#141616] text-rose-300 hover:text-rose-200 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-3 gap-2">
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
@@ -824,6 +970,65 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                 </div>
 
                 <form onSubmit={handleCreateNewDesign} className="space-y-3.5">
+                  {/* Custom Thumbnail Image Uploader inside New Design Modal */}
+                  <div className="p-3 rounded-xl bg-[#222424] border border-white/10 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {newThumbnailUrl ? (
+                        <img
+                          src={newThumbnailUrl}
+                          alt="Miniatura"
+                          className="w-12 h-12 rounded-lg object-cover border border-white/20 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-[#141616] border border-white/10 flex items-center justify-center text-[#ffb59b] shrink-0">
+                          <ImagePlus className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate">
+                          Miniatura Personalizada
+                        </div>
+                        <div className="text-[10px] text-[#c8c6c5] truncate">
+                          {newThumbnailUrl
+                            ? 'Foto personalizada lista'
+                            : 'Opcional: subí una foto real del mueble'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <label className="px-2.5 py-1.5 rounded-lg bg-[#e87a50] text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Subir Foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const dataUrl = await compressImageToDataUrl(file);
+                              setNewThumbnailUrl(dataUrl);
+                            } catch {
+                              onShowToast('Error al cargar imagen');
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {newThumbnailUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setNewThumbnailUrl('')}
+                          title="Quitar imagen personalizada"
+                          className="p-1.5 rounded-lg bg-[#141616] text-rose-300 hover:text-rose-200 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-3 gap-2">
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">

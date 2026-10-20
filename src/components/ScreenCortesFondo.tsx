@@ -1008,12 +1008,32 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
                       </span>
                     </div>
 
-                    <div className="bg-[#202222] rounded-lg px-2.5 py-1.5 flex items-center justify-between">
-                      <span className="text-[#c8c6c5]">Superficie:</span>
-                      <span className="font-bold text-[#ffb59b] tabular-nums">
-                        {(pieceArea * piece.quantity).toFixed(2)} m²
-                      </span>
-                    </div>
+                    {(() => {
+                      const unitFondoPrice =
+                        piece.unitPriceArs && piece.unitPriceArs > 0
+                          ? piece.unitPriceArs
+                          : Math.round(pieceArea * costPerM2 * 1.15);
+                      const totalFondoPrice = unitFondoPrice * piece.quantity;
+                      return (
+                        <div className="bg-[#202222] rounded-lg px-2.5 py-1.5 flex flex-col justify-center">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[#c8c6c5]">
+                              {piece.quantity > 1
+                                ? `Valor (×${piece.quantity}):`
+                                : 'Valor:'}
+                            </span>
+                            <span className="font-bold text-[#ffb59b] tabular-nums">
+                              {formatARS(totalFondoPrice)}
+                            </span>
+                          </div>
+                          {piece.quantity > 1 && (
+                            <div className="text-[10px] text-[#9e9c9b] text-right tabular-nums leading-tight">
+                              {formatARS(unitFondoPrice)} c/u
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
