@@ -24,6 +24,8 @@ import {
   Signal,
   X,
   CheckCircle2,
+  Home,
+  ClipboardList,
 } from 'lucide-react';
 import {
   ScreenId,
@@ -60,6 +62,8 @@ import { ScreenOperaciones } from './components/ScreenOperaciones';
 import { ScreenLogistica } from './components/ScreenLogistica';
 import { ScreenAtelierCAD } from './components/ScreenAtelierCAD';
 import { ScreenCatalogo } from './components/ScreenCatalogo';
+import { ScreenInicio } from './components/ScreenInicio';
+import { ScreenPedidos } from './components/ScreenPedidos';
 import {
   saveDocToCloud,
   subscribeToWorkshopState,
@@ -75,19 +79,34 @@ const SCREEN_TABS: {
   label: string;
   icon: React.FC<{ className?: string }>;
 }[] = [
+  { id: 'inicio', label: 'Inicio (Panel Principal)', icon: Home },
   { id: 'guillotina', label: 'Guillotina 2D (Melamina)', icon: Scissors },
   { id: 'fondo', label: 'Cortes Fondo', icon: Layers },
   { id: 'filo', label: 'Calculador de Filo', icon: Disc },
   { id: 'inventario', label: 'Inventario de Taller', icon: Package },
   { id: 'catalogo', label: 'Catálogo & BOM', icon: BookOpen },
-  { id: 'cad', label: 'Atelier CAD 3D', icon: Box },
-  { id: 'operaciones', label: 'Gestión & Finanzas', icon: Wallet },
   { id: 'logistica', label: 'Logística & Fletes', icon: Truck },
+  { id: 'pedidos', label: 'Pedidos & En Curso', icon: ClipboardList },
+  { id: 'operaciones', label: 'Gestión & Finanzas', icon: Wallet },
+  { id: 'cad', label: 'Atelier CAD 3D', icon: Box },
   { id: 'gamificacion', label: 'Gamificación Atelier', icon: Trophy },
 ];
 
+const BOTTOM_NAV_ITEMS: {
+  id: ScreenId;
+  label: string;
+  emoji: string;
+  icon: React.FC<{ className?: string }>;
+}[] = [
+  { id: 'inicio', label: 'Inicio', emoji: '🏠', icon: Home },
+  { id: 'guillotina', label: 'Cortes', emoji: '🪚', icon: Scissors },
+  { id: 'inventario', label: 'Inventario', emoji: '📦', icon: Package },
+  { id: 'logistica', label: 'Flete', emoji: '🚚', icon: Truck },
+  { id: 'pedidos', label: 'Pedidos', emoji: '📋', icon: ClipboardList },
+];
+
 export default function App() {
-  const [activeScreen, setActiveScreen] = useState<ScreenId>('guillotina');
+  const [activeScreen, setActiveScreen] = useState<ScreenId>('inicio');
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -179,6 +198,18 @@ export default function App() {
   const [extraBillingArs, setExtraBillingArs] = useState<number>(() =>
     getStored('mjl_extra_billing', 0)
   );
+  const [salesGoalUnits, setSalesGoalUnits] = useState<number>(() =>
+    getStored('mjl_sales_goal_units', 20)
+  );
+  const [extraSoldUnits, setExtraSoldUnits] = useState<number>(() =>
+    getStored('mjl_extra_sold_units', 12)
+  );
+  const [freightRatePerKm, setFreightRatePerKm] = useState<number>(() =>
+    getStored('mjl_freight_rate_km', 1850)
+  );
+  const [preselectedFreightDesignId, setPreselectedFreightDesignId] = useState<
+    string | null
+  >(null);
 
   // State: Catálogo & CAD 3D
   const [designs, setDesigns] = useState<FurnitureDesign[]>(() =>
@@ -249,8 +280,22 @@ export default function App() {
       localStorage.setItem('mjl_por_percibir', JSON.stringify(porPercibir));
       localStorage.setItem('mjl_meta_mensual', JSON.stringify(metaMensual));
       localStorage.setItem('mjl_extra_billing', JSON.stringify(extraBillingArs));
+      localStorage.setItem('mjl_sales_goal_units', JSON.stringify(salesGoalUnits));
+      localStorage.setItem('mjl_extra_sold_units', JSON.stringify(extraSoldUnits));
+      localStorage.setItem('mjl_freight_rate_km', JSON.stringify(freightRatePerKm));
     } catch {}
-  }, [cashEfectivo, cashBancos, movements, cobradoMes, porPercibir, metaMensual, extraBillingArs]);
+  }, [
+    cashEfectivo,
+    cashBancos,
+    movements,
+    cobradoMes,
+    porPercibir,
+    metaMensual,
+    extraBillingArs,
+    salesGoalUnits,
+    extraSoldUnits,
+    freightRatePerKm,
+  ]);
 
   useEffect(() => {
     try {
@@ -316,6 +361,15 @@ export default function App() {
         if (typeof cloudData.extraBillingArs === 'number') {
           setExtraBillingArs(cloudData.extraBillingArs);
         }
+        if (typeof cloudData.salesGoalUnits === 'number') {
+          setSalesGoalUnits(cloudData.salesGoalUnits);
+        }
+        if (typeof cloudData.extraSoldUnits === 'number') {
+          setExtraSoldUnits(cloudData.extraSoldUnits);
+        }
+        if (typeof cloudData.freightRatePerKm === 'number') {
+          setFreightRatePerKm(cloudData.freightRatePerKm);
+        }
         setTimeout(() => {
           isApplyingRemoteRef.current = false;
         }, 300);
@@ -353,6 +407,9 @@ export default function App() {
         cobradoMes,
         porPercibir,
         extraBillingArs,
+        salesGoalUnits,
+        extraSoldUnits,
+        freightRatePerKm,
       }).then((ok) => {
         if (ok && navigator.onLine) setIsCloudOnline(true);
       });
@@ -375,6 +432,9 @@ export default function App() {
     cobradoMes,
     porPercibir,
     extraBillingArs,
+    salesGoalUnits,
+    extraSoldUnits,
+    freightRatePerKm,
   ]);
 
 
@@ -899,7 +959,15 @@ export default function App() {
 
   const handleUpdateOrderStage = (orderId: string, stage: OrderStage) => {
     setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, stage } : o))
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              stage,
+              inCourse: stage === 'entregado' ? false : o.inCourse,
+            }
+          : o
+      )
     );
   };
 
@@ -911,6 +979,72 @@ export default function App() {
   const handleDeleteOrder = (orderId: string) => {
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
     showToast('Orden eliminada de la cola de producción');
+  };
+
+  // Full Order Circuit: Catálogo -> Flete -> Guardar y Enviar a Pedidos
+  const handleSubmitFreightToPedidos = (payload: {
+    design: FurnitureDesign;
+    quantity: number;
+    clientName: string;
+    address: string;
+    distanceKm: number;
+    ratePerKm: number;
+    freightArs: number;
+    totalArs: number;
+  }) => {
+    const nextNum = 1085 + orders.length;
+    const defaultIso = new Date(Date.now() + 2 * 86400000)
+      .toISOString()
+      .split('T')[0];
+    const [yyyy, mm, dd] = defaultIso.split('-').map(Number);
+    const months = [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
+    const formattedDate = `${dd} ${months[(mm || 1) - 1]}`;
+    const shortZone =
+      payload.address.split(',')[1]?.trim() || payload.address.split(',')[0];
+
+    const newOrder: WorkshopOrder = {
+      id: `ped-${Date.now()}`,
+      code: `#PED-${nextNum}`,
+      deliveryDate: formattedDate,
+      deliveryDateIso: defaultIso,
+      clientName: payload.clientName,
+      location: `${shortZone} • ${payload.distanceKm} km`,
+      distanceKm: payload.distanceKm,
+      itemsSummary:
+        payload.quantity > 1
+          ? `${payload.design.name} x${payload.quantity}`
+          : payload.design.name,
+      designId: payload.design.id,
+      furnitureQty: payload.quantity,
+      freightCostArs: payload.freightArs,
+      materialSpec: `${payload.design.specLine} • ${payload.design.drawerCount ?? 1} cajón(es)`,
+      totalArs: payload.totalArs,
+      stage: 'proceso',
+      inCourse: true,
+      drawerCount: payload.design.drawerCount ?? 1,
+      drawersConfig: payload.design.drawersConfig,
+      packagesCount: payload.quantity,
+      packagingSpec: `${payload.quantity} bulto(s) • Film stretch & esquineros`,
+      address: payload.address,
+      featured: false,
+    };
+
+    setOrders((prev) => [newOrder, ...prev]);
+    setSelectedFreightOrderId(newOrder.id);
+    setActiveScreen('pedidos');
   };
 
   const handleAddCashMovement = (
@@ -1200,8 +1334,51 @@ export default function App() {
           </div>
         </header>
 
-        {/* MAIN ANDROID SCROLLABLE CONTENT (No bottom nav bar) */}
-        <main className="flex-1 w-full px-3.5 pt-3 pb-8">
+        {/* MAIN ANDROID SCROLLABLE CONTENT (Anti-overlap padding-bottom: 95px) */}
+        <main
+          className="flex-1 w-full px-3.5 pt-3"
+          style={{ paddingBottom: '95px' }}
+        >
+          {activeScreen === 'inicio' && (
+            <ScreenInicio
+              orders={orders}
+              salesGoalUnits={salesGoalUnits}
+              onUpdateSalesGoalUnits={setSalesGoalUnits}
+              extraSoldUnits={extraSoldUnits}
+              onUpdateExtraSoldUnits={setExtraSoldUnits}
+              onGoToPedidos={() => setActiveScreen('pedidos')}
+              onSelectOrderForFreight={(orderId) => {
+                setSelectedFreightOrderId(orderId);
+                setActiveScreen('logistica');
+              }}
+              onMarkOrderDelivered={(orderId) =>
+                handleUpdateOrderStage(orderId, 'entregado')
+              }
+              onShowToast={showToast}
+            />
+          )}
+
+          {activeScreen === 'pedidos' && (
+            <ScreenPedidos
+              orders={orders}
+              designs={designs}
+              inventoryItems={inventoryItems}
+              cutPieces={cutPieces}
+              predefinedCuts={predefinedCuts}
+              onUpdateOrder={handleUpdateOrder}
+              onUpdateOrderStage={handleUpdateOrderStage}
+              onAddOrder={handleAddOrder}
+              onDeleteOrder={handleDeleteOrder}
+              onSelectOrderForFreight={(orderId) => {
+                setSelectedFreightOrderId(orderId);
+                setActiveScreen('logistica');
+              }}
+              onLoadMissingPiecesToCutter={handleLoadMissingPiecesToCutter}
+              onDeductOrderAssemblyStock={handleDeductOrderAssemblyStock}
+              onShowToast={showToast}
+            />
+          )}
+
           {activeScreen === 'guillotina' && (
             <ScreenGuillotina2D
               boards={boards}
@@ -1350,8 +1527,13 @@ export default function App() {
             <ScreenLogistica
               activeOrder={activeFreightOrder}
               orders={orders}
+              designs={designs}
+              preselectedDesignId={preselectedFreightDesignId}
+              ratePerKm={freightRatePerKm}
+              onUpdateRatePerKm={setFreightRatePerKm}
               onSelectOrder={setSelectedFreightOrderId}
               onUpdateOrderStage={handleUpdateOrderStage}
+              onSubmitFreightToPedidos={handleSubmitFreightToPedidos}
               onShowToast={showToast}
             />
           )}
@@ -1384,13 +1566,62 @@ export default function App() {
               onDeleteDesign={handleDeleteDesign}
               onUpdateDesign={handleUpdateDesign}
               onLoadMissingPiecesToCutter={handleLoadMissingPiecesToCutter}
+              onSendToFreight={(design) => {
+                setPreselectedFreightDesignId(design.id);
+                setActiveScreen('logistica');
+              }}
               inventoryItems={inventoryItems}
+              cutPieces={cutPieces}
+              predefinedCuts={predefinedCuts}
               onGoToInventario={() => setActiveScreen('inventario')}
               onOpenCadViewer={() => setActiveScreen('cad')}
               onShowToast={showToast}
             />
           )}
         </main>
+
+        {/* FIXED BOTTOM NAVIGATION BAR (68px height, high z-index, strict anti-overlap & stopPropagation) */}
+        <nav
+          onClick={(e) => e.stopPropagation()}
+          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] h-[68px] z-40 bg-[#121414]/95 backdrop-blur-md border-t border-white/10 px-2 flex items-center justify-around select-none shadow-[0_-8px_24px_rgba(0,0,0,0.75)]"
+        >
+          {BOTTOM_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeScreen === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveScreen(item.id);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2.5 rounded-xl transition-all cursor-pointer min-w-[62px] ${
+                  isActive
+                    ? 'bg-[#e87a50]/15 text-[#ffb59b] border border-[#e87a50]/40 scale-105'
+                    : 'text-[#a1a1a1] hover:text-white active:scale-95'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] leading-none">{item.emoji}</span>
+                  <Icon
+                    className={`w-4 h-4 ${
+                      isActive ? 'text-[#e87a50] stroke-[2.4]' : 'stroke-[1.8]'
+                    }`}
+                  />
+                </div>
+                <span
+                  className={`text-[10px] leading-tight tracking-tight ${
+                    isActive ? 'font-extrabold text-[#ffb59b]' : 'font-semibold'
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
 
         {/* HAMBURGER SLIDE-OUT DRAWER (Sole navigation menu) */}
         {drawerOpen && (
@@ -1471,9 +1702,9 @@ export default function App() {
           </div>
         )}
 
-        {/* TOAST FEEDBACK BANNER */}
+        {/* TOAST FEEDBACK BANNER (Elevated above 68px bottom nav bar) */}
         {toastMessage && (
-          <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[380px] bg-[#241914] border border-[#e87a50] text-[#ffdbcf] px-3.5 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-semibold">
+          <div className="fixed bottom-[78px] left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[380px] bg-[#241914] border border-[#e87a50] text-[#ffdbcf] px-3.5 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-semibold">
             <CheckCircle2 className="w-4 h-4 text-[#e87a50] shrink-0" />
             <span className="flex-1 leading-snug">{toastMessage}</span>
             <button

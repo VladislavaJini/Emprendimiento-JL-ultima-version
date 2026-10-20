@@ -980,50 +980,39 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
             </div>
           </section>
 
-          {/* SECTION: CORTES ASIGNADOS */}
+          {/* SECTION: CONTROLES DE CORTES (Sin desborde horizontal) */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between px-0.5">
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold font-display text-white">
-                  Cortes Asignados
-                </h2>
-                <span className="bg-[#34221c] text-[#ffb59b] text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums">
-                  {totalPiecesCount} piezas
-                </span>
-              </div>
+            <div className="grid grid-cols-3 gap-2 w-full">
+              {/* PREDEFINED CUTS DROPDOWN BUTTON */}
+              <button
+                onClick={() => setShowPresetsMenu(true)}
+                title="Plantillas y Cortes Predefinidos (CRUD)"
+                className="h-9 px-2 rounded-xl bg-[#222424] hover:bg-[#2b2d2d] border border-white/10 text-[#e3e2e2] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs truncate"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-[#ffb59b] shrink-0" />
+                <span className="truncate">Plantillas ({predefinedCuts.length})</span>
+              </button>
 
-              <div className="flex items-center gap-1.5">
-                {/* PREDEFINED CUTS DROPDOWN BUTTON */}
-                <button
-                  onClick={() => setShowPresetsMenu(true)}
-                  title="Plantillas y Cortes Predefinidos (CRUD)"
-                  className="h-8 px-2.5 rounded-lg bg-[#222424] hover:bg-[#2b2d2d] border border-white/10 text-[#e3e2e2] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Bookmark className="w-3 h-3 text-[#ffb59b]" />
-                  <span>Plantillas ({predefinedCuts.length})</span>
-                </button>
+              <button
+                onClick={() => {
+                  setSelectedCadPiece(null);
+                  setCurrentBoardPage(0);
+                  onResetCleanOrder();
+                }}
+                title="Reiniciar todos los cortes, simulador y eficiencia a 0 absoluto"
+                className="h-9 px-2 rounded-xl bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/70 text-[#ffb59b] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs truncate"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-[#ffb59b] shrink-0" />
+                <span className="truncate">Reiniciar</span>
+              </button>
 
-                <button
-                  onClick={() => {
-                    setSelectedCadPiece(null);
-                    setCurrentBoardPage(0);
-                    onResetCleanOrder();
-                  }}
-                  title="Reiniciar todos los cortes, simulador y eficiencia a 0 absoluto"
-                  className="h-8 px-2.5 rounded-lg bg-[#271e1a] hover:bg-[#34241d] border border-[#e87a50]/70 text-[#ffb59b] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
-                >
-                  <RotateCcw className="w-3 h-3 text-[#ffb59b]" />
-                  <span>Reiniciar</span>
-                </button>
-
-                <button
-                  onClick={openAddModal}
-                  className="h-8 px-2.5 rounded-lg bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Corte</span>
-                </button>
-              </div>
+              <button
+                onClick={openAddModal}
+                className="h-9 px-2 rounded-xl bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs truncate"
+              >
+                <Plus className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+                <span className="truncate">+ Corte</span>
+              </button>
             </div>
 
             {/* Empty state when 0 cuts assigned */}

@@ -1,4 +1,5 @@
 export type ScreenId =
+  | 'inicio'
   | 'guillotina'
   | 'fondo'
   | 'filo'
@@ -7,17 +8,19 @@ export type ScreenId =
   | 'cad'
   | 'operaciones'
   | 'logistica'
+  | 'pedidos'
   | 'gamificacion';
 
 export interface MelaminaBoard {
   id: string;
   name: string;
-  brandSpec: string;
+  brandSpec?: string;
   widthMm: number;
   heightMm: number;
+  thicknessMm?: number;
   costArs: number;
   swatchColor: string;
-  grainType: 'horizontal' | 'vertical';
+  grainType?: 'horizontal' | 'vertical';
 }
 
 export interface CutPiece {
@@ -49,11 +52,11 @@ export interface PredefinedCut {
 export interface EdgeBandingRoll {
   id: string;
   name: string;
-  widthThickSpec: string; // e.g. "22mm × 0.45mm PVC" or "22mm × 2.0mm ABS"
-  rollLengthMeters: number; // e.g. 10, 25, 50
-  rollPriceArs: number; // e.g. 6500
+  widthThickSpec: string;
+  rollLengthMeters: number;
+  rollPriceArs: number;
   swatchColor: string;
-  trimWasteMmPerSide: number; // e.g. 15mm minimum waste per applied edge
+  trimWasteMmPerSide: number;
 }
 
 export interface EdgeBandingPiece {
@@ -63,8 +66,8 @@ export interface EdgeBandingPiece {
   lengthMm: number;
   widthMm: number;
   quantity: number;
-  longSidesCount: 0 | 1 | 2; // 0, 1, or 2 largos
-  shortSidesCount: 0 | 1 | 2; // 0, 1, or 2 anchos
+  longSidesCount: 0 | 1 | 2;
+  shortSidesCount: 0 | 1 | 2;
 }
 
 export type InventoryCategory = 'herraje' | 'pieza_cortada' | 'material';
@@ -84,10 +87,44 @@ export interface InventoryItem {
 
 export type OrderStage = 'proceso' | 'terminado' | 'embalado' | 'entregado';
 
+export interface DrawerSpec {
+  id: string;
+  index: number;
+  // 1. Maderas del cajón
+  frontPieceName?: string;
+  frontWidthMm: number;
+  frontHeightMm: number;
+  frontQty?: number;
+  sidesPieceName?: string;
+  sidesDepthMm: number;
+  sidesHeightMm: number;
+  sidesQty?: number;
+  backPieceName?: string;
+  backWidthMm: number;
+  backHeightMm: number;
+  backQty?: number;
+  // 2. Fondo de cajón
+  bottomWidthMm: number;
+  bottomDepthMm: number;
+  bottomQty?: number;
+  bottomMaterial?: string;
+  // 3. Filo (Tapacantos)
+  edgeMeters: number;
+  edgeType?: string;
+  // 4. Insumos / Herrajes
+  slideType: string;
+  slideQty?: number;
+  handleType: string;
+  handleQty?: number;
+  screwType?: string;
+  screwsCount: number;
+}
+
 export interface WorkshopOrder {
   id: string;
   code: string;
   deliveryDate: string;
+  deliveryDateIso?: string;
   clientName: string;
   location: string;
   distanceKm: number;
@@ -99,6 +136,16 @@ export interface WorkshopOrder {
   packagingSpec: string;
   address: string;
   featured?: boolean;
+  // Extended full-circuit fields
+  furnitureId?: string;
+  furnitureName?: string;
+  furnitureQty?: number;
+  furniturePriceArs?: number;
+  freightArs?: number;
+  ratePerKm?: number;
+  drawerCount?: number;
+  drawersConfig?: DrawerSpec[];
+  inCourse?: boolean;
 }
 
 export interface CashMovement {
@@ -125,23 +172,6 @@ export interface BomMaterialItem {
   cadSubLabel?: string;
 }
 
-export interface DrawerSpec {
-  id: string;
-  index: number;
-  frontWidthMm: number;
-  frontHeightMm: number;
-  sidesDepthMm: number;
-  sidesHeightMm: number;
-  backWidthMm: number;
-  backHeightMm: number;
-  bottomWidthMm: number;
-  bottomDepthMm: number;
-  slideType: string;
-  handleType: string;
-  screwsCount: number;
-  edgeMeters: number;
-}
-
 export interface FurnitureDesign {
   id: string;
   code: string;
@@ -163,4 +193,3 @@ export interface FurnitureDesign {
   drawerCount?: number;
   drawersConfig?: DrawerSpec[];
 }
-

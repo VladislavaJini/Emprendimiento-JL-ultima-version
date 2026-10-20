@@ -32,8 +32,14 @@ import {
   InventoryItem,
   FurnitureDesign,
   CutPiece,
+  DrawerSpec,
 } from '../types/atelier';
 import { formatARS } from '../data/initialData';
+import { DrawerConfiguratorBar } from './DrawerConfiguratorBar';
+import {
+  generateDefaultDrawers,
+  normalizeDrawersConfig,
+} from '../utils/drawerEngine';
 
 interface ScreenOperacionesProps {
   showGamificacion?: boolean;
@@ -119,6 +125,10 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   const [newLocation, setNewLocation] = useState('Ramos Mejía • 4.2 km');
   const [newItems, setNewItems] = useState('');
   const [newTotal, setNewTotal] = useState('245000');
+  const [newDrawerCount, setNewDrawerCount] = useState<number>(1);
+  const [newDrawersConfig, setNewDrawersConfig] = useState<DrawerSpec[]>(() =>
+    generateDefaultDrawers(1, 450, 550, 380)
+  );
 
   // Order editing modal state
   const [showEditOrderModal, setShowEditOrderModal] = useState(false);
@@ -129,6 +139,8 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   const [editItems, setEditItems] = useState('');
   const [editTotal, setEditTotal] = useState('');
   const [editMaterial, setEditMaterial] = useState('');
+  const [editDrawerCount, setEditDrawerCount] = useState<number>(1);
+  const [editDrawersConfig, setEditDrawersConfig] = useState<DrawerSpec[]>([]);
 
   // Helper to compare an order against inventory items (BOM Sync)
   const getOrderBomReadiness = (order: WorkshopOrder) => {
@@ -307,6 +319,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
     onAddOrder({
       code: `#PED-${numCode}`,
       deliveryDate: '02 Nov',
+      deliveryDateIso: '2026-11-02',
       clientName: newClient.trim() || 'Arquitectura & Diseño Sur',
       location: newLocation.trim() || 'Haedo • 4.5 km',
       distanceKm: 6.2,
@@ -315,9 +328,12 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
       totalArs: parseInt(newTotal, 10) || 245000,
       stage: 'proceso',
       packagesCount: 2,
-      packagingSpec: '2 bultos • Film stretch & esquineros',
+      packagingSpec: `2 bultos • ${newDrawerCount} cajones`,
       address: newLocation.split('•')[0].trim() || 'Av. Rivadavia 15800, Haedo',
       featured: true,
+      drawerCount: newDrawerCount,
+      drawersConfig: newDrawersConfig,
+      inCourse: true,
     });
     setNewClient('');
     setNewItems('');
@@ -343,6 +359,7 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   };
 
   const openEditOrderModal = (order: WorkshopOrder) => {
+    const drwCount = order.drawerCount !== undefined ? order.drawerCount : 1;
     setEditingOrderId(order.id);
     setEditClient(order.clientName);
     setEditDelivery(order.deliveryDate);
@@ -350,6 +367,10 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
     setEditItems(order.itemsSummary);
     setEditTotal(String(order.totalArs));
     setEditMaterial(order.materialSpec);
+    setEditDrawerCount(drwCount);
+    setEditDrawersConfig(
+      normalizeDrawersConfig(order.drawersConfig, drwCount, 450, 550, 380)
+    );
     setShowEditOrderModal(true);
   };
 
@@ -363,6 +384,8 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
       itemsSummary: editItems.trim() || 'Muebles a medida',
       totalArs: Math.max(1000, parseInt(editTotal.replace(/\D/g, ''), 10) || 100000),
       materialSpec: editMaterial.trim() || 'Melamina 18mm',
+      drawerCount: editDrawerCount,
+      drawersConfig: editDrawersConfig,
     });
     setShowEditOrderModal(false);
   };
@@ -810,6 +833,18 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                     className="bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs text-white tabular-nums"
                   />
                 </div>
+                <DrawerConfiguratorBar
+                  drawerCount={newDrawerCount}
+                  drawersConfig={newDrawersConfig}
+                  cabinetWidthMm={450}
+                  cabinetHeightMm={550}
+                  cabinetDepthMm={380}
+                  inventoryItems={inventoryItems}
+                  onChange={(newCount, newConfig) => {
+                    setNewDrawerCount(newCount);
+                    setNewDrawersConfig(newConfig);
+                  }}
+                />
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
@@ -1582,6 +1617,19 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                   className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white"
                 />
               </div>
+
+              <DrawerConfiguratorBar
+                drawerCount={editDrawerCount}
+                drawersConfig={editDrawersConfig}
+                cabinetWidthMm={450}
+                cabinetHeightMm={550}
+                cabinetDepthMm={380}
+                inventoryItems={inventoryItems}
+                onChange={(newCount, newConfig) => {
+                  setEditDrawerCount(newCount);
+                  setEditDrawersConfig(newConfig);
+                }}
+              />
 
               <div className="flex justify-end gap-2 pt-2">
                 <button

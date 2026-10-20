@@ -396,235 +396,329 @@ export const ScreenInventario: React.FC<ScreenInventarioProps> = ({
       </div>
 
       {/* MODAL: AGREGAR / EDITAR OBJETO DE INVENTARIO */}
-      {showItemModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="atelier-card rounded-2xl max-w-sm w-full p-5 space-y-4 border border-white/15">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold font-display text-white">
-                {editingItemId
-                  ? 'Editar Objeto de Inventario'
-                  : 'Nuevo Objeto en Inventario'}
-              </h3>
-              <button
-                onClick={() => setShowItemModal(false)}
-                className="p-1 text-[#a1a1a1] hover:text-white cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {showItemModal && (() => {
+        const existingPieceMatch = items.find(
+          (it) =>
+            it.name.trim().toLowerCase() === itemName.trim().toLowerCase() &&
+            it.id !== editingItemId
+        );
+        const currentExistingStock = existingPieceMatch
+          ? existingPieceMatch.stockQty
+          : editingItemId
+          ? items.find((i) => i.id === editingItemId)?.stockQty || 0
+          : 0;
+        const addedQty = Math.max(0, parseFloat(itemStock) || 0);
+        const cumulativeTotal = editingItemId
+          ? addedQty
+          : currentExistingStock + addedQty;
 
-            <form onSubmit={handleSaveItem} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                  Categoría del Objeto
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { key: 'herraje' as const, label: 'Herraje' },
-                    { key: 'pieza_cortada' as const, label: 'Pieza Madera' },
-                    { key: 'material' as const, label: 'Insumo/Placa' },
-                  ].map((c) => (
-                    <button
-                      type="button"
-                      key={c.key}
-                      onClick={() => {
-                        setItemCategory(c.key);
-                        if (c.key === 'pieza_cortada') setItemUnit('pieza');
-                      }}
-                      className={`py-2 rounded-xl text-xs font-bold border cursor-pointer ${
-                        itemCategory === c.key
-                          ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
-                          : 'bg-[#222424] text-[#c8c6c5] border-white/10'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
+        // Build unified options for Pieza Madera dropdown
+        const woodSelectOptions: {
+          key: string;
+          name: string;
+          spec: string;
+          price: number;
+          group: string;
+        }[] = [];
+
+        cutPieces.forEach((p) => {
+          woodSelectOptions.push({
+            key: `cut::${p.id}`,
+            name: p.name,
+            spec: `${p.widthMm} × ${p.heightMm} mm • Melamina 18mm`,
+            price: p.unitPriceArs || 3500,
+            group: 'Cortes Cargados en Guillotina 2D',
+          });
+        });
+
+        predefinedCuts.forEach((p) => {
+          woodSelectOptions.push({
+            key: `pre::${p.id}`,
+            name: p.name,
+            spec: `${p.widthMm} × ${p.heightMm} mm • Melamina 18mm`,
+            price: 3500,
+            group: 'Plantillas de Cortes Predefinidos',
+          });
+        });
+
+        items
+          .filter((i) => i.category === 'pieza_cortada')
+          .forEach((i) => {
+            if (
+              !woodSelectOptions.some(
+                (o) => o.name.trim().toLowerCase() === i.name.trim().toLowerCase()
+              )
+            ) {
+              woodSelectOptions.push({
+                key: `inv::${i.id}`,
+                name: i.name,
+                spec: i.subtitle,
+                price: i.unitPriceArs || 3500,
+                group: 'Piezas de Madera en Stock',
+              });
+            }
+          });
+
+        const matchedDropdownOption = woodSelectOptions.find(
+          (o) => o.name.trim().toLowerCase() === itemName.trim().toLowerCase()
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="atelier-card rounded-2xl max-w-sm w-full p-5 space-y-3.5 border border-white/15 my-auto shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold font-display text-white">
+                  {editingItemId
+                    ? 'Editar Objeto de Inventario'
+                    : 'Nuevo Objeto en Inventario'}
+                </h3>
+                <button
+                  onClick={() => setShowItemModal(false)}
+                  className="p-1 text-[#a1a1a1] hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              {/* Dropdown Menu when Pieza Madera is selected */}
-              {itemCategory === 'pieza_cortada' && (
-                <div className="space-y-1.5 p-3 rounded-xl bg-[#1c1e1e] border border-[#e87a50]/40">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-[#ffb59b] uppercase tracking-wider">
-                      Cortes de Guillotina &amp; Predefinidos
-                    </label>
-                    <span className="text-[10px] text-[#c8c6c5]">
-                      Auto-completar datos
-                    </span>
-                  </div>
-                  <select
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (!val) return;
-                      if (val.startsWith('cut-')) {
-                        const cut = cutPieces.find((p) => p.id === val);
-                        if (cut) {
-                          setItemName(cut.name);
-                          setItemSub(
-                            `${cut.widthMm} × ${cut.heightMm} mm • Melamina 18mm ya cortada`
-                          );
-                          setItemPrice(String(cut.unitPriceArs || 3500));
-                          setItemUnit('pieza');
-                          setItemStock(String(cut.quantity || 1));
-                        }
-                      } else if (val.startsWith('pre-')) {
-                        const pre = predefinedCuts.find((p) => p.id === val);
-                        if (pre) {
-                          setItemName(pre.name);
-                          setItemSub(
-                            `${pre.widthMm} × ${pre.heightMm} mm • Melamina 18mm ya cortada`
-                          );
-                          setItemPrice('3500');
-                          setItemUnit('pieza');
-                          setItemStock('5');
-                        }
-                      }
-                    }}
-                    defaultValue=""
-                    className="w-full bg-[#272929] border border-white/15 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:border-[#e87a50] focus:outline-none cursor-pointer"
-                  >
-                    <option value="" disabled>
-                      -- Seleccionar corte cargado o predefinido --
-                    </option>
-                    {cutPieces.length > 0 && (
-                      <optgroup label="Cortes Activos en Guillotina (Cutter)">
-                        {cutPieces.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.widthMm}×{p.heightMm} mm • {p.quantity} uds)
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {predefinedCuts.length > 0 && (
-                      <optgroup label="Cortes Predefinidos (Plantillas)">
-                        {predefinedCuts.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.widthMm}×{p.heightMm} mm)
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                  Nombre del Herraje / Pieza Cortada
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder={
-                    itemCategory === 'pieza_cortada'
-                      ? 'Ej. Frentes de cajón'
-                      : 'Ej. Corredera Telescópica 400mm H45'
-                  }
-                  value={itemName}
-                  onChange={(e) => setItemName(e.target.value)}
-                  className="w-full bg-[#222424] border border-white/15 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-white"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-[#e3e2e2]">
-                    Medidas / Especificación Técnica
+              <form onSubmit={handleSaveItem} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
+                    Categoría del Objeto
                   </label>
-                  <span className="text-[10px] text-[#a1a1a1]">Editable</span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { key: 'herraje' as const, label: 'Herraje' },
+                      { key: 'pieza_cortada' as const, label: 'Pieza Madera' },
+                      { key: 'material' as const, label: 'Insumo/Placa' },
+                    ].map((c) => (
+                      <button
+                        type="button"
+                        key={c.key}
+                        onClick={() => {
+                          setItemCategory(c.key);
+                          if (c.key === 'pieza_cortada') {
+                            setItemUnit('pieza');
+                            // Auto-select first cut if name is empty
+                            if (!itemName && woodSelectOptions[0]) {
+                              setItemName(woodSelectOptions[0].name);
+                              setItemSub(woodSelectOptions[0].spec);
+                              setItemPrice(String(woodSelectOptions[0].price));
+                            }
+                          }
+                        }}
+                        className={`py-2 rounded-xl text-xs font-bold border cursor-pointer transition-colors ${
+                          itemCategory === c.key
+                            ? 'bg-[#e87a50] text-[#121414] border-[#e87a50]'
+                            : 'bg-[#222424] text-[#c8c6c5] border-white/10'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Ej. 450 × 380 mm • Melamina 18mm ya cortada"
-                  value={itemSub}
-                  onChange={(e) => setItemSub(e.target.value)}
-                  className="w-full bg-[#222424] border border-white/15 rounded-xl px-3.5 py-2 text-xs text-white"
-                />
-              </div>
 
-              <div className="grid grid-cols-3 gap-2">
+                {/* Nombre del Herraje / Pieza Cortada: Dropdown for Pieza Madera + Custom option */}
                 <div>
                   <label className="block text-xs font-semibold text-[#ffb59b] mb-1">
-                    Costo Unit. (ARS)
+                    Nombre del Herraje / Pieza Cortada
                   </label>
-                  <input
-                    type="number"
-                    required
-                    value={itemPrice}
-                    onChange={(e) => setItemPrice(e.target.value)}
-                    className="w-full bg-[#222424] border border-[#e87a50] rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
-                  />
+
+                  {itemCategory === 'pieza_cortada' ? (
+                    <div className="space-y-2">
+                      <select
+                        value={
+                          matchedDropdownOption
+                            ? matchedDropdownOption.key
+                            : itemName
+                            ? '__custom__'
+                            : ''
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            setItemName('');
+                            setItemSub('400 × 335 mm • Melamina 18mm');
+                            return;
+                          }
+                          const chosen = woodSelectOptions.find(
+                            (o) => o.key === val
+                          );
+                          if (chosen) {
+                            setItemName(chosen.name);
+                            setItemSub(chosen.spec);
+                            setItemPrice(String(chosen.price));
+                            setItemUnit('pieza');
+                          }
+                        }}
+                        className="w-full bg-[#222424] border border-[#e87a50]/60 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:border-[#e87a50] focus:outline-none cursor-pointer"
+                      >
+                        <option value="" disabled>
+                          -- Elegir corte de Guillotina / Plantilla --
+                        </option>
+                        <optgroup label="Cortes Cargados en Guillotina 2D">
+                          {woodSelectOptions
+                            .filter(
+                              (o) =>
+                                o.group === 'Cortes Cargados en Guillotina 2D'
+                            )
+                            .map((o) => (
+                              <option key={o.key} value={o.key}>
+                                {o.name} ({o.spec.split('•')[0].trim()})
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Plantillas de Cortes Predefinidos">
+                          {woodSelectOptions
+                            .filter(
+                              (o) =>
+                                o.group === 'Plantillas de Cortes Predefinidos'
+                            )
+                            .map((o) => (
+                              <option key={o.key} value={o.key}>
+                                {o.name} ({o.spec.split('•')[0].trim()})
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Piezas de Madera en Stock">
+                          {woodSelectOptions
+                            .filter(
+                              (o) => o.group === 'Piezas de Madera en Stock'
+                            )
+                            .map((o) => (
+                              <option key={o.key} value={o.key}>
+                                {o.name} ({o.spec.split('•')[0].trim()})
+                              </option>
+                            ))}
+                        </optgroup>
+                        <option value="__custom__">
+                          ✏️ Escribir otro nombre de pieza nuevo...
+                        </option>
+                      </select>
+
+                      {/* Always allow editing or typing a custom piece name */}
+                      <input
+                        type="text"
+                        required
+                        placeholder="Nombre exacto de la pieza (ej. Frentes, Piso y techo...)"
+                        value={itemName}
+                        onChange={(e) => setItemName(e.target.value)}
+                        className="w-full bg-[#1b1d1d] border border-white/15 rounded-xl px-3.5 py-2 text-xs font-semibold text-white"
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej. Corredera Telescópica 400mm H45"
+                      value={itemName}
+                      onChange={(e) => setItemName(e.target.value)}
+                      className="w-full bg-[#222424] border border-white/15 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-white"
+                    />
+                  )}
                 </div>
+
+                {/* Medidas / Especificación Técnica (100% Editable) */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                    Unidad
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-[#e3e2e2]">
+                      Medidas / Especificación Técnica
+                    </label>
+                    <span className="text-[10px] text-[#ffb59b] font-semibold">
+                      100% Editable
+                    </span>
+                  </div>
                   <input
                     type="text"
-                    value={itemUnit}
-                    onChange={(e) => setItemUnit(e.target.value)}
-                    className="w-full bg-[#222424] border border-white/15 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                    placeholder="Ej. 400 × 335 mm • Melamina 18mm"
+                    value={itemSub}
+                    onChange={(e) => setItemSub(e.target.value)}
+                    className="w-full bg-[#222424] border border-white/15 rounded-xl px-3.5 py-2 text-xs text-white"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                    Stock {editingItemId ? 'Actual' : 'a Agregar'}
-                  </label>
-                  <input
-                    type="number"
-                    value={itemStock}
-                    onChange={(e) => setItemStock(e.target.value)}
-                    className="w-full bg-[#222424] border border-white/15 rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
-                  />
-                </div>
-              </div>
 
-              {/* Cumulative Stock Info Pill */}
-              {(() => {
-                const match = items.find(
-                  (it) =>
-                    it.name.trim().toLowerCase() === itemName.trim().toLowerCase() &&
-                    it.id !== editingItemId
-                );
-                if (match && !editingItemId) {
-                  const added = parseFloat(itemStock) || 0;
-                  const total = match.stockQty + added;
-                  return (
-                    <div className="p-2.5 rounded-xl bg-[#281d18] border border-[#e87a50]/60 space-y-1">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-[#ffb59b]">
-                        <span>Pieza ya existente en Inventario</span>
-                        <span className="tabular-nums">Stock actual: {match.stockQty} {match.unitLabel}</span>
-                      </div>
-                      <div className="text-[10px] text-[#e3e2e2]">
-                        Lógica acumulativa: <strong className="text-white">{match.stockQty}</strong> existentes + <strong className="text-[#ffb59b]">{added}</strong> nuevas = <strong className="text-[#55e69e]">{total} {match.unitLabel}</strong> totales.
-                      </div>
+                {/* Stock Actual Box + Cantidad a Sumar */}
+                <div className="p-3 rounded-xl bg-[#1b1d1d] border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#c8c6c5] font-semibold">
+                      Stock Actual en Existencia:
+                    </span>
+                    <span className="font-extrabold text-[#ffb59b] tabular-nums">
+                      {currentExistingStock} {itemUnit || 'unidades'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-[#ffb59b] mb-1">
+                        Costo Unit. (ARS)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={itemPrice}
+                        onChange={(e) => setItemPrice(e.target.value)}
+                        className="w-full bg-[#222424] border border-white/15 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white tabular-nums"
+                      />
                     </div>
-                  );
-                }
-                return null;
-              })()}
+                    <div>
+                      <label className="block text-[10px] font-semibold text-[#e3e2e2] mb-1">
+                        Unidad
+                      </label>
+                      <input
+                        type="text"
+                        value={itemUnit}
+                        onChange={(e) => setItemUnit(e.target.value)}
+                        className="w-full bg-[#222424] border border-white/15 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-emerald-300 mb-1">
+                        {editingItemId ? 'Nuevo Stock' : '+ Cant. a Sumar'}
+                      </label>
+                      <input
+                        type="number"
+                        value={itemStock}
+                        onChange={(e) => setItemStock(e.target.value)}
+                        className="w-full bg-[#222424] border border-emerald-500/50 rounded-xl px-2.5 py-1.5 text-xs font-extrabold text-white tabular-nums"
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowItemModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#222424] text-xs font-semibold text-[#c8c6c5] cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#e87a50] text-[#121414] text-xs font-bold cursor-pointer"
-                >
-                  Guardar en Inventario
-                </button>
-              </div>
-            </form>
+                  {!editingItemId && (
+                    <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[11px]">
+                      <span className="text-[#a1a1a1]">
+                        Suma acumulativa ({currentExistingStock} + {addedQty}):
+                      </span>
+                      <span className="font-extrabold text-emerald-400 tabular-nums">
+                        Total Final: {cumulativeTotal} {itemUnit || 'uds'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowItemModal(false)}
+                    className="px-4 py-2 rounded-xl bg-[#222424] text-xs font-semibold text-[#c8c6c5] cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#e87a50] text-[#121414] text-xs font-bold cursor-pointer shadow-md"
+                  >
+                    {editingItemId
+                      ? 'Guardar Cambios'
+                      : `Sumar al Stock (${cumulativeTotal} total)`}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
