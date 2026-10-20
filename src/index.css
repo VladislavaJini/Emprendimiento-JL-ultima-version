@@ -50,6 +50,8 @@
   --mjl-text-muted: #D5BC9F;
   --mjl-nav-bg: rgba(89, 35, 15, 0.96);
   --mjl-drawer-bg: #471C0C;
+  --mjl-font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mjl-font-display: 'Cormorant Garamond', Georgia, serif;
 }
 
 /* ============================================================================
@@ -106,8 +108,11 @@ html.senior-mode input {
 }
 
 @layer base {
+  body, button, input, select, textarea {
+    font-family: var(--mjl-font-family);
+  }
+
   body {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: var(--mjl-outer-bg);
     color: var(--mjl-text-main);
     font-variant-numeric: tabular-nums;
@@ -115,7 +120,7 @@ html.senior-mode input {
   }
 
   h1, h2, h3, .font-display {
-    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-family: var(--mjl-font-display);
     letter-spacing: 0.015em;
   }
 }

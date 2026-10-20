@@ -29,6 +29,8 @@ import {
   Moon,
   Sun,
   ZoomIn,
+  Type,
+  ChevronsRight,
 } from 'lucide-react';
 import {
   ScreenId,
@@ -82,31 +84,53 @@ const SCREEN_TABS: {
   label: string;
   icon: React.FC<{ className?: string }>;
 }[] = [
-  { id: 'inicio', label: 'Inicio (Panel Principal)', icon: Home },
-  { id: 'presupuesto', label: 'Nuevo Presupuesto (Cubo)', icon: Box },
-  { id: 'guillotina', label: 'Guillotina 2D (Melamina)', icon: Scissors },
+  { id: 'inicio', label: 'Inicio', icon: Home },
+  { id: 'presupuesto', label: 'Presupuesto', icon: Box },
+  { id: 'guillotina', label: 'Guillotina 2D', icon: Scissors },
   { id: 'fondo', label: 'Cortes Fondo', icon: Layers },
-  { id: 'filo', label: 'Calculador de Filo', icon: Disc },
-  { id: 'inventario', label: 'Inventario de Taller', icon: Package },
+  { id: 'filo', label: 'Calc. Filo', icon: Disc },
+  { id: 'inventario', label: 'Inventario', icon: Package },
   { id: 'catalogo', label: 'Catálogo & BOM', icon: BookOpen },
-  { id: 'logistica', label: 'Logística & Fletes', icon: Truck },
-  { id: 'pedidos', label: 'Pedidos & En Curso', icon: ClipboardList },
-  { id: 'operaciones', label: 'Gestión & Finanzas', icon: Wallet },
-  { id: 'gamificacion', label: 'Gamificación Atelier', icon: Trophy },
+  { id: 'logistica', label: 'Fletes & Ruta', icon: Truck },
+  { id: 'pedidos', label: 'Pedidos', icon: ClipboardList },
+  { id: 'operaciones', label: 'Finanzas', icon: Wallet },
+  { id: 'gamificacion', label: 'Trofeos Taller', icon: Trophy },
 ];
 
 const BOTTOM_NAV_ITEMS: {
   id: ScreenId;
   label: string;
-  emoji: string;
   icon: React.FC<{ className?: string }>;
 }[] = [
-  { id: 'inicio', label: 'Inicio', emoji: '🏠', icon: Home },
-  { id: 'guillotina', label: 'Cortes', emoji: '🪚', icon: Scissors },
-  { id: 'inventario', label: 'Inventario', emoji: '📦', icon: Package },
-  { id: 'catalogo', label: 'Catálogo', emoji: '📖', icon: BookOpen },
-  { id: 'logistica', label: 'Flete', emoji: '🚚', icon: Truck },
-  { id: 'pedidos', label: 'Pedidos', emoji: '📋', icon: ClipboardList },
+  { id: 'inicio', label: 'Inicio', icon: Home },
+  { id: 'guillotina', label: 'Cortes', icon: Scissors },
+  { id: 'inventario', label: 'Inventario', icon: Package },
+  { id: 'catalogo', label: 'Catálogo', icon: BookOpen },
+  { id: 'logistica', label: 'Flete', icon: Truck },
+  { id: 'pedidos', label: 'Pedidos', icon: ClipboardList },
+];
+
+const AUTO_LOADED_FONTS: { name: string; stack: string; category: string }[] = [
+  { name: 'Plus Jakarta Sans', stack: "'Plus Jakarta Sans', sans-serif", category: 'Moderna' },
+  { name: 'Cormorant Garamond', stack: "'Cormorant Garamond', serif", category: 'Editorial' },
+  { name: 'Playfair Display', stack: "'Playfair Display', serif", category: 'Clásica' },
+  { name: 'Montserrat', stack: "'Montserrat', sans-serif", category: 'Geométrica' },
+  { name: 'Poppins', stack: "'Poppins', sans-serif", category: 'Limpia' },
+  { name: 'Lora', stack: "'Lora', serif", category: 'Artesanal' },
+  { name: 'Outfit', stack: "'Outfit', sans-serif", category: 'Minimalista' },
+  { name: 'Cinzel', stack: "'Cinzel', serif", category: 'Imperial' },
+  { name: 'Merriweather', stack: "'Merriweather', serif", category: 'Lectura' },
+  { name: 'Raleway', stack: "'Raleway', sans-serif", category: 'Elegante' },
+  { name: 'Oswald', stack: "'Oswald', sans-serif", category: 'Industrial' },
+  { name: 'Josefin Sans', stack: "'Josefin Sans', sans-serif", category: 'Vintage' },
+  { name: 'Libre Baskerville', stack: "'Libre Baskerville', serif", category: 'Tradicional' },
+  { name: 'Quicksand', stack: "'Quicksand', sans-serif", category: 'Suave' },
+  { name: 'DM Serif Display', stack: "'DM Serif Display', serif", category: 'Revista' },
+  { name: 'Manrope', stack: "'Manrope', sans-serif", category: 'Técnica' },
+  { name: 'Bitter', stack: "'Bitter', serif", category: 'Robusta' },
+  { name: 'Cabin', stack: "'Cabin', sans-serif", category: 'Humanista' },
+  { name: 'Spectral', stack: "'Spectral', serif", category: 'Literaria' },
+  { name: 'Syne', stack: "'Syne', sans-serif", category: 'Vanguardia' },
 ];
 
 const DEFAULT_CUSTOM_PALETTE = {
@@ -186,6 +210,83 @@ export default function App() {
       localStorage.setItem('mjl_custom_palette', JSON.stringify(customPalette));
     } catch {}
   }, [isDarkMode, customPalette]);
+
+  const [selectedFont, setSelectedFont] = useState<string>(() =>
+    getStored('mjl_selected_font', 'Plus Jakarta Sans')
+  );
+
+  // Swipe-right gesture tracking for opening/closing the left menu drawer
+  const swipeStartRef = React.useRef<{ x: number; y: number; active: boolean }>({
+    x: 0,
+    y: 0,
+    active: false,
+  });
+
+  const handleTouchStartGlobal = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    swipeStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      active: true,
+    };
+  };
+
+  const handleTouchMoveGlobal = (e: React.TouchEvent) => {
+    if (!swipeStartRef.current.active || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - swipeStartRef.current.x;
+    const dy = Math.abs(e.touches[0].clientY - swipeStartRef.current.y);
+
+    // Horizontal swipe right to open menu
+    if (!drawerOpen && dx > 48 && dx > dy * 1.35) {
+      swipeStartRef.current.active = false;
+      setDrawerOpen(true);
+    } else if (drawerOpen && dx < -48 && Math.abs(dx) > dy * 1.35) {
+      // Horizontal swipe left to close menu
+      swipeStartRef.current.active = false;
+      setDrawerOpen(false);
+    }
+  };
+
+  const handleTouchEndGlobal = () => {
+    swipeStartRef.current.active = false;
+  };
+
+  const handlePointerDownSwipeZone = (e: React.PointerEvent) => {
+    swipeStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      active: true,
+    };
+  };
+
+  const handlePointerMoveSwipeZone = (e: React.PointerEvent) => {
+    if (!swipeStartRef.current.active) return;
+    const dx = e.clientX - swipeStartRef.current.x;
+    const dy = Math.abs(e.clientY - swipeStartRef.current.y);
+    if (!drawerOpen && dx > 32 && dx > dy) {
+      swipeStartRef.current.active = false;
+      setDrawerOpen(true);
+    } else if (drawerOpen && dx < -32 && Math.abs(dx) > dy) {
+      swipeStartRef.current.active = false;
+      setDrawerOpen(false);
+    }
+  };
+
+  const handlePointerUpSwipeZone = () => {
+    swipeStartRef.current.active = false;
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const fontObj =
+      AUTO_LOADED_FONTS.find((f) => f.name === selectedFont) ||
+      AUTO_LOADED_FONTS[0];
+    root.style.setProperty('--mjl-font-family', fontObj.stack);
+    root.style.setProperty('--mjl-font-display', fontObj.stack);
+    try {
+      localStorage.setItem('mjl_selected_font', JSON.stringify(selectedFont));
+    } catch {}
+  }, [selectedFont]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1277,8 +1378,32 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full bg-[#090a0a] flex justify-center">
-      {/* ANDROID MOBILE DEVICE CONTAINER */}
-      <div className="w-full max-w-[420px] min-h-screen bg-[#121414] text-[#e3e2e2] flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.85)] sm:border-x sm:border-white/10">
+      {/* ANDROID MOBILE DEVICE CONTAINER (With Swipe-Right to Open Left Menu) */}
+      <div
+        onTouchStart={handleTouchStartGlobal}
+        onTouchMove={handleTouchMoveGlobal}
+        onTouchEnd={handleTouchEndGlobal}
+        onPointerDown={handlePointerDownSwipeZone}
+        onPointerMove={handlePointerMoveSwipeZone}
+        onPointerUp={handlePointerUpSwipeZone}
+        className="w-full max-w-[420px] min-h-screen bg-[#121414] text-[#e3e2e2] flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.85)] sm:border-x sm:border-white/10"
+      >
+        {/* LEFT-EDGE SWIPE SENSOR & VISUAL HANDLE TAB (Slide finger right to open menu) */}
+        {!drawerOpen && (
+          <div
+            onTouchStart={handleTouchStartGlobal}
+            onTouchMove={handleTouchMoveGlobal}
+            onTouchEnd={handleTouchEndGlobal}
+            onPointerDown={handlePointerDownSwipeZone}
+            onPointerMove={handlePointerMoveSwipeZone}
+            onPointerUp={handlePointerUpSwipeZone}
+            title="Deslizá el dedo hacia la derecha para abrir el menú"
+            className="fixed left-0 top-16 bottom-20 w-5 z-40 flex items-center justify-start select-none touch-pan-y"
+          >
+            <div className="w-1.5 h-16 rounded-r-full bg-[#BD9774]/55 border-y border-r border-white/25 shadow-md flex items-center justify-center" />
+          </div>
+        )}
+
         {/* ANDROID SYSTEM STATUS BAR */}
         <div
           className="sticky top-0 z-40 px-4 pt-1.5 pb-1 flex items-center justify-between text-[11px] font-semibold text-[#EAD6C0] select-none"
@@ -1304,21 +1429,23 @@ export default function App() {
           </div>
         </div>
 
-        {/* APP HEADER BAR (Navigation strictly via Hamburger menu) */}
+        {/* APP HEADER BAR (Swipe right to open left menu instead of tapping hamburger icon) */}
         <header
-          className="sticky top-[24px] z-30 backdrop-blur-md border-b border-[#BD9774]/30 px-3.5 py-2.5 shadow-md"
+          className="sticky top-[24px] z-30 backdrop-blur-md border-b border-[#BD9774]/30 px-3.5 py-2.5 shadow-md select-none"
           style={{ backgroundColor: 'var(--mjl-header-bg)' }}
         >
           <div className="flex items-center justify-between gap-2">
-            {/* Left: Hamburger Button + Brand Lockup */}
+            {/* Left: Swipe-Right Gesture Pill + Brand Lockup */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <button
-                onClick={() => setDrawerOpen(true)}
-                aria-label="Abrir menú de navegación"
-                className="w-10 h-10 rounded-xl bg-[#4A4327] hover:bg-[#585030] active:scale-95 border border-[#BD9774]/40 flex items-center justify-center text-[#FFF9F2] transition-all cursor-pointer shrink-0 shadow-sm"
+              <div
+                title="Deslizá el dedo hacia la derecha para abrir el menú"
+                className="h-10 px-2.5 rounded-xl bg-[#4A4327]/90 border border-[#BD9774]/40 flex items-center gap-1 text-[#FFF9F2] shrink-0 shadow-sm"
               >
-                <Menu className="w-5 h-5" />
-              </button>
+                <ChevronsRight className="w-4 h-4 text-[#BD9774] animate-pulse" />
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[#F0D9C0]">
+                  Deslizar
+                </span>
+              </div>
 
               <div className="min-w-0">
                 <div className="text-[20px] font-bold font-display text-white leading-tight truncate tracking-wide">
@@ -1332,8 +1459,8 @@ export default function App() {
                   />
                   <span className="truncate">
                     {isCloudOnline
-                      ? '🟢 Sincronizado en Nube'
-                      : '🟠 Modo Local Offline'}
+                      ? 'Sincronizado en Nube'
+                      : 'Modo Local Offline'}
                   </span>
                 </div>
               </div>
@@ -1655,7 +1782,7 @@ export default function App() {
           )}
         </main>
 
-        {/* FIXED BOTTOM NAVIGATION BAR (68px height, high z-index, strict anti-overlap & stopPropagation) */}
+        {/* FIXED BOTTOM NAVIGATION BAR (Minimalist modern icons ONLY, no emojis) */}
         <nav
           onClick={(e) => e.stopPropagation()}
           className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] h-[68px] z-40 bg-[#121414]/95 backdrop-blur-md border-t border-white/10 px-1.5 grid grid-cols-6 gap-1 items-center select-none shadow-[0_-8px_24px_rgba(0,0,0,0.75)]"
@@ -1672,20 +1799,17 @@ export default function App() {
                   setActiveScreen(item.id);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-xl transition-all cursor-pointer min-w-0 ${
+                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-xl transition-all cursor-pointer min-w-0 ${
                   isActive
                     ? 'bg-[#e87a50]/15 text-[#ffb59b] border border-[#e87a50]/40 scale-105'
                     : 'text-[#a1a1a1] hover:text-white active:scale-95'
                 }`}
               >
-                <div className="flex items-center gap-0.5">
-                  <span className="text-[10px] leading-none">{item.emoji}</span>
-                  <Icon
-                    className={`w-3.5 h-3.5 ${
-                      isActive ? 'text-[#e87a50] stroke-[2.4]' : 'stroke-[1.8]'
-                    }`}
-                  />
-                </div>
+                <Icon
+                  className={`w-5 h-5 transition-transform ${
+                    isActive ? 'text-[#e87a50] stroke-[2.2]' : 'stroke-[1.75]'
+                  }`}
+                />
                 <span
                   className={`text-[9.5px] leading-tight tracking-tight truncate w-full text-center ${
                     isActive ? 'font-extrabold text-[#ffb59b]' : 'font-semibold'
@@ -1698,25 +1822,31 @@ export default function App() {
           })}
         </nav>
 
-        {/* HAMBURGER SLIDE-OUT DRAWER (Sole navigation menu) */}
+        {/* SLIDE-OUT LEFT MENU DRAWER (Opened by swiping right) */}
         {drawerOpen && (
-          <div className="fixed inset-0 z-50 flex justify-center">
+          <div
+            onTouchStart={handleTouchStartGlobal}
+            onTouchMove={handleTouchMoveGlobal}
+            onTouchEnd={handleTouchEndGlobal}
+            className="fixed inset-0 z-50 flex justify-center"
+          >
             <div className="w-full max-w-[420px] h-full bg-black/75 backdrop-blur-xs flex relative">
               <div
-                className="w-80 max-w-[86%] border-r border-[#BD9774]/35 h-full p-4 flex flex-col justify-between overflow-y-auto shadow-2xl"
+                className="w-84 max-w-[88%] border-r border-[#BD9774]/35 h-full p-4 flex flex-col justify-between overflow-y-auto shadow-2xl"
                 style={{ backgroundColor: 'var(--mjl-drawer-bg)' }}
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <div className="space-y-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
                       <div className="text-xl font-bold font-display text-white tracking-wide">
                         Muebles J&amp;L
                       </div>
                       <div className="text-[11px] text-[#F0D9C0] font-semibold">
                         Menú de Taller • Villa Luzuriaga
                       </div>
+
                       {/* 4 Interactive Color Picker Dots (#BD9774, #59230F, #8C3F23, #4A4327) */}
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
                         {/* DOT 1: Fondo & Acento */}
                         <label
                           className="w-5 h-5 rounded-full border-2 border-white/60 hover:scale-110 transition-transform cursor-pointer relative shadow-sm flex items-center justify-center"
@@ -1810,55 +1940,94 @@ export default function App() {
                             onClick={() => {
                               setCustomPalette(DEFAULT_CUSTOM_PALETTE);
                               setIsDarkMode(false);
-                              showToast('🎨 Paleta original restaurada');
+                              showToast('Paleta original restaurada');
                             }}
                             className="text-[9px] px-1.5 py-0.5 rounded bg-black/30 hover:bg-black/50 text-[#F0D9C0] border border-white/20 cursor-pointer"
                             title="Restaurar los 4 colores originales"
                           >
-                            ↺ Restaurar
+                            Restaurar
                           </button>
                         )}
                       </div>
+
+                      {/* BARRA DEBAJO DE LAS OPCIONES DE COLOR: Selector Desplegable con 20 Fuentes Automáticas */}
+                      <div className="mt-2.5 p-2 rounded-xl bg-black/25 border border-[#BD9774]/35 flex items-center gap-2">
+                        <Type className="w-4 h-4 text-[#BD9774] shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-[9px] font-bold uppercase tracking-wider text-[#D5BC9F] leading-none mb-1">
+                            Fuente de Letra (20 cargadas)
+                          </label>
+                          <select
+                            value={selectedFont}
+                            onChange={(e) => {
+                              setSelectedFont(e.target.value);
+                              showToast(`Fuente aplicada: ${e.target.value}`);
+                            }}
+                            className="w-full bg-[#4A4327] text-[#FFF9F2] text-xs font-bold px-2 py-1 rounded-lg border border-[#BD9774]/40 focus:outline-none cursor-pointer"
+                          >
+                            {AUTO_LOADED_FONTS.map((f, idx) => (
+                              <option
+                                key={f.name}
+                                value={f.name}
+                                style={{ fontFamily: f.stack }}
+                              >
+                                {idx + 1}. {f.name} ({f.category})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
+
                     <button
                       onClick={() => setDrawerOpen(false)}
-                      className="p-1.5 rounded-lg bg-[#4A4327] text-[#F0D9C0] hover:text-white border border-[#BD9774]/30 cursor-pointer"
+                      className="p-1.5 rounded-lg bg-[#4A4327] text-[#F0D9C0] hover:text-white border border-[#BD9774]/30 cursor-pointer shrink-0"
+                      title="Cerrar menú (o deslizá a la izquierda)"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#D5BC9F] px-2 pb-1">
+                  {/* MENÚ EN GRILLA 2 POR FILA: Primero Icono Minimalista Moderno Grande y Debajo el Título */}
+                  <div className="space-y-2 pt-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#D5BC9F] px-1">
                       Ventanas del Taller ({SCREEN_TABS.length})
                     </div>
-                    {SCREEN_TABS.map((tab, i) => {
-                      const Icon = tab.icon;
-                      const active = activeScreen === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          onClick={() => {
-                            setActiveScreen(tab.id);
-                            setDrawerOpen(false);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                            active
-                              ? 'bg-[#8C3F23] text-white border border-[#BD9774]/50 shadow-sm'
-                              : 'text-[#F7EFE6] hover:bg-white/10'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2.5">
-                            <Icon className="w-4 h-4" />
-                            <span>{tab.label}</span>
-                          </span>
-                          <span className="text-[10px] opacity-75 tabular-nums">
-                            {String(i + 1).padStart(2, '0')}
-                          </span>
-                        </button>
-                      );
-                    })}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {SCREEN_TABS.map((tab) => {
+                        const Icon = tab.icon;
+                        const active = activeScreen === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveScreen(tab.id);
+                              setDrawerOpen(false);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className={`flex flex-col items-center justify-center gap-2 p-3.5 rounded-2xl text-center transition-all cursor-pointer border ${
+                              active
+                                ? 'bg-[#8C3F23] text-white border-[#BD9774] shadow-lg scale-[1.02]'
+                                : 'bg-black/20 text-[#F7EFE6] border-[#BD9774]/25 hover:bg-white/10 active:scale-95'
+                            }`}
+                          >
+                            <div
+                              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+                                active
+                                  ? 'bg-black/25 text-[#FFF9F2] border border-[#BD9774]/50'
+                                  : 'bg-[#4A4327]/75 text-[#F0D9C0] border border-[#BD9774]/25'
+                              }`}
+                            >
+                              <Icon className="w-6 h-6 stroke-[1.8]" />
+                            </div>
+                            <span className="text-[11px] font-bold leading-tight tracking-tight line-clamp-1 w-full">
+                              {tab.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
