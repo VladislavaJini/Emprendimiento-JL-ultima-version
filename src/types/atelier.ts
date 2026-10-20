@@ -35,6 +35,17 @@ export interface CutPiece {
   mandatoryGrain?: boolean;
 }
 
+export interface PredefinedCut {
+  id: string;
+  name: string;
+  widthMm: number;
+  heightMm: number;
+  edgesType: '4L' | '2L' | '1L' | '0L';
+  edgesLabel: string;
+  allowRotation: boolean;
+  mandatoryGrain?: boolean;
+}
+
 export interface EdgeBandingRoll {
   id: string;
   name: string;
@@ -114,6 +125,23 @@ export interface BomMaterialItem {
   cadSubLabel?: string;
 }
 
+export interface DrawerSpec {
+  id: string;
+  index: number;
+  frontWidthMm: number;
+  frontHeightMm: number;
+  sidesDepthMm: number;
+  sidesHeightMm: number;
+  backWidthMm: number;
+  backHeightMm: number;
+  bottomWidthMm: number;
+  bottomDepthMm: number;
+  slideType: string;
+  handleType: string;
+  screwsCount: number;
+  edgeMeters: number;
+}
+
 export interface FurnitureDesign {
   id: string;
   code: string;
@@ -132,4 +160,7 @@ export interface FurnitureDesign {
   bodyTexture: 'Blanco Puro' | 'Negro Grafito';
   frontTexture: 'Carvalho' | 'Báltico' | 'Gaudí';
   bomItems: BomMaterialItem[];
+  drawerCount?: number;
+  drawersConfig?: DrawerSpec[];
 }
+

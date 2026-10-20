@@ -12,9 +12,10 @@ import {
   Scissors,
   RotateCcw,
   Check,
+  RefreshCw,
   X,
 } from 'lucide-react';
-import { EdgeBandingRoll, EdgeBandingPiece } from '../types/atelier';
+import { EdgeBandingRoll, EdgeBandingPiece, CutPiece } from '../types/atelier';
 import { formatARS } from '../data/initialData';
 
 interface ScreenCalculadorFiloProps {
@@ -29,6 +30,8 @@ interface ScreenCalculadorFiloProps {
   onUpdatePiece: (id: string, updated: Partial<EdgeBandingPiece>) => void;
   onDeletePiece: (id: string) => void;
   onResetPieces: () => void;
+  cutPieces?: CutPiece[];
+  onSyncWithGuillotine?: (importedPieces: EdgeBandingPiece[]) => void;
   onShowToast: (msg: string) => void;
 }
 
@@ -53,6 +56,8 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
   onUpdatePiece,
   onDeletePiece,
   onResetPieces,
+  cutPieces = [],
+  onSyncWithGuillotine,
   onShowToast,
 }) => {
   const [showRollDropdown, setShowRollDropdown] = useState(false);
@@ -141,6 +146,84 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
           100,
           Math.round((totalRequiredMeters / Math.max(0.5, totalBoughtMeters)) * 100)
         );
+
+  // Breakdown by Edge Type: PVC 0.45mm vs ABS 2.0mm
+  const pvc045Calculations = pieceCalculations.filter(
+    (c) =>
+      !c.piece.subtitle.toLowerCase().includes('abs') &&
+      !c.piece.subtitle.toLowerCase().includes('2mm') &&
+      !c.piece.name.toLowerCase().includes('abs')
+  );
+  const abs2mmCalculations = pieceCalculations.filter(
+    (c) =>
+      c.piece.subtitle.toLowerCase().includes('abs') ||
+      c.piece.subtitle.toLowerCase().includes('2mm') ||
+      c.piece.name.toLowerCase().includes('abs')
+  );
+
+  const pvc045Meters = Number(
+    pvc045Calculations.reduce((acc, c) => acc + c.totalMeters, 0).toFixed(2)
+  );
+  const abs2mmMeters = Number(
+    abs2mmCalculations.reduce((acc, c) => acc + c.totalMeters, 0).toFixed(2)
+  );
+
+  const pvc045CostArs = Math.round(pvc045Meters * pricePerMeterArs);
+  // ABS 2mm standard cost per meter is roughly 2.2x standard PVC 0.45mm
+  const absPricePerMeterArs = Math.round(pricePerMeterArs * 2.2);
+  const abs2mmCostArs = Math.round(abs2mmMeters * absPricePerMeterArs);
+
+  // Auto-Sync from Guillotine Cut Optimizer
+  const handleImportFromGuillotine = () => {
+    if (!cutPieces || cutPieces.length === 0) {
+      onShowToast('No hay cortes activos en la Guillotina 2D para sincronizar.');
+      return;
+    }
+
+    const converted: EdgeBandingPiece[] = cutPieces.map((cp, idx) => {
+      let longSides: 0 | 1 | 2 = 0;
+      let shortSides: 0 | 1 | 2 = 0;
+
+      if (cp.edgesType === '4L') {
+        longSides = 2;
+        shortSides = 2;
+      } else if (cp.edgesType === '2L') {
+        longSides = 2;
+        shortSides = 0;
+      } else if (cp.edgesType === '1L') {
+        longSides = 1;
+        shortSides = 0;
+      }
+
+      return {
+        id: `ep-sync-${idx}-${Date.now()}`,
+        name: cp.name,
+        subtitle: `${cp.subtitle || 'Corte Guillotina'} (${cp.edgesLabel || cp.edgesType})`,
+        lengthMm: cp.widthMm,
+        widthMm: cp.heightMm,
+        quantity: cp.quantity,
+        longSidesCount: longSides,
+        shortSidesCount: shortSides,
+      };
+    });
+
+    if (onSyncWithGuillotine) {
+      onSyncWithGuillotine(converted);
+    } else {
+      converted.forEach((p) => onAddPiece(p));
+    }
+
+    const totalLinearMeters = converted.reduce((sum, p) => {
+      const perUnit = p.longSidesCount * p.lengthMm + p.shortSidesCount * p.widthMm;
+      return sum + (perUnit * p.quantity) / 1000;
+    }, 0);
+
+    onShowToast(
+      `🔄 Auto-Sync: ${converted.length} piezas importadas desde Guillotina (${totalLinearMeters.toFixed(
+        2
+      )} m lineales calculados)`
+    );
+  };
 
   // Open Modal to Edit existing roll
   const openEditRollModal = (roll: EdgeBandingRoll) => {
@@ -280,6 +363,15 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
         >
           <Palette className="w-3.5 h-3.5 text-[#ffb59b] shrink-0" />
           <span>+ Agregar Color</span>
+        </button>
+
+        {/* Auto-Sync with Guillotine 2D Button */}
+        <button
+          onClick={handleImportFromGuillotine}
+          className="col-span-12 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#e87a50] to-[#b3532c] hover:from-[#f0855c] hover:to-[#c45e35] text-[#280b00] font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-[0.99] transition-all cursor-pointer"
+        >
+          <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+          <span>🔄 Importar Cortes de Guillotina ({cutPieces.length} piezas activas en Cutter)</span>
         </button>
       </div>
 
@@ -729,6 +821,43 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
             </div>
             <div className="text-[11px] text-[#c8c6c5]">
               ARS p/ próximos muebles
+            </div>
+          </div>
+        </div>
+
+        {/* Breakdown by Edge Type (PVC 0.45mm vs ABS 2.0mm) */}
+        <div className="pt-2 border-t border-white/5 space-y-2">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#c8c6c5] flex items-center justify-between">
+            <span>Desglose por Espesor / Tipo de Canto</span>
+            <span className="text-[#ffb59b]">PVC 0.45mm vs ABS 2.0mm</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {/* PVC 0.45mm */}
+            <div className="p-2.5 rounded-xl bg-[#1a1c1c] border border-white/10 space-y-1">
+              <div className="flex items-center justify-between font-bold text-white">
+                <span className="text-[#a5d6a7]">PVC 0.45 mm</span>
+                <span className="tabular-nums">{pvc045Meters} m</span>
+              </div>
+              <p className="text-[10px] text-[#b7b5b4]">
+                Interiores & fajas • {formatARS(pricePerMeterArs)}/m
+              </p>
+              <div className="text-right text-[11px] font-bold text-[#e3e2e2] tabular-nums pt-0.5">
+                Subtotal: {formatARS(pvc045CostArs)}
+              </div>
+            </div>
+
+            {/* ABS 2.0mm */}
+            <div className="p-2.5 rounded-xl bg-[#2a1e18] border border-[#e87a50]/30 space-y-1">
+              <div className="flex items-center justify-between font-bold text-white">
+                <span className="text-[#ffb59b]">ABS 2.0 mm</span>
+                <span className="tabular-nums">{abs2mmMeters} m</span>
+              </div>
+              <p className="text-[10px] text-[#b7b5b4]">
+                Frentes y tapas • {formatARS(absPricePerMeterArs)}/m
+              </p>
+              <div className="text-right text-[11px] font-bold text-[#ffb59b] tabular-nums pt-0.5">
+                Subtotal: {formatARS(abs2mmCostArs)}
+              </div>
             </div>
           </div>
         </div>

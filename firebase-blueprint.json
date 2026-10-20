@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "inventoryItem": {
+      "title": "InventoryItem",
+      "description": "Workshop inventory item (herrajes, placas, piezas cortadas, etc.)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "category": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "stockQty": { "type": "number" },
+        "unitLabel": { "type": "string" },
+        "unitPriceArs": { "type": "number" }
+      },
+      "required": ["name", "category", "stockQty"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "Customer order in workshop queue",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "furnitureModel": { "type": "string" },
+        "colorFinish": { "type": "string" },
+        "totalPriceArs": { "type": "number" },
+        "downPaymentArs": { "type": "number" },
+        "status": { "type": "string" },
+        "targetDeliveryDate": { "type": "string" }
+      },
+      "required": ["clientName", "furnitureModel", "totalPriceArs", "status"]
+    },
+    "catalogDesign": {
+      "title": "CatalogDesign",
+      "description": "Furniture catalog model with parametric drawers and dynamic BOM",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "widthMm": { "type": "number" },
+        "heightMm": { "type": "number" },
+        "depthMm": { "type": "number" },
+        "priceArs": { "type": "number" }
+      },
+      "required": ["name", "widthMm", "heightMm", "depthMm"]
+    },
+    "cutPiece": {
+      "title": "CutPiece",
+      "description": "Active cut piece in Guillotine 2D optimizer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "widthMm": { "type": "number" },
+        "heightMm": { "type": "number" },
+        "quantity": { "type": "number" }
+      },
+      "required": ["name", "widthMm", "heightMm", "quantity"]
+    }
+  },
+  "firestore": {
+    "/inventory/{itemId}": {
+      "schema": "inventoryItem",
+      "description": "Workshop stock items"
+    },
+    "/orders/{orderId}": {
+      "schema": "order",
+      "description": "Client orders queue"
+    },
+    "/catalog/{designId}": {
+      "schema": "catalogDesign",
+      "description": "Catalog furniture designs and recipes"
+    },
+    "/cuts/{cutId}": {
+      "schema": "cutPiece",
+      "description": "Guillotine active cutting pieces"
+    }
+  }
+}

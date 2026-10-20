@@ -15,7 +15,12 @@ import {
   BookOpen,
   X,
 } from 'lucide-react';
-import { InventoryItem, InventoryCategory } from '../types/atelier';
+import {
+  InventoryItem,
+  InventoryCategory,
+  CutPiece,
+  PredefinedCut,
+} from '../types/atelier';
 import { formatARS } from '../data/initialData';
 
 interface ScreenInventarioProps {
@@ -23,6 +28,8 @@ interface ScreenInventarioProps {
   onAddItem: (item: Omit<InventoryItem, 'id' | 'code'>) => void;
   onUpdateItem: (id: string, updated: Partial<InventoryItem>) => void;
   onDeleteItem: (id: string) => void;
+  cutPieces?: CutPiece[];
+  predefinedCuts?: PredefinedCut[];
   onGoToCatalogo: () => void;
   onShowToast: (msg: string) => void;
 }
@@ -32,6 +39,8 @@ export const ScreenInventario: React.FC<ScreenInventarioProps> = ({
   onAddItem,
   onUpdateItem,
   onDeleteItem,
+  cutPieces = [],
+  predefinedCuts = [],
   onGoToCatalogo,
   onShowToast,
 }) => {
@@ -434,6 +443,73 @@ export const ScreenInventario: React.FC<ScreenInventarioProps> = ({
                 </div>
               </div>
 
+              {/* Dropdown Menu when Pieza Madera is selected */}
+              {itemCategory === 'pieza_cortada' && (
+                <div className="space-y-1.5 p-3 rounded-xl bg-[#1c1e1e] border border-[#e87a50]/40">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-[#ffb59b] uppercase tracking-wider">
+                      Cortes de Guillotina &amp; Predefinidos
+                    </label>
+                    <span className="text-[10px] text-[#c8c6c5]">
+                      Auto-completar datos
+                    </span>
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      if (val.startsWith('cut-')) {
+                        const cut = cutPieces.find((p) => p.id === val);
+                        if (cut) {
+                          setItemName(cut.name);
+                          setItemSub(
+                            `${cut.widthMm} × ${cut.heightMm} mm • Melamina 18mm ya cortada`
+                          );
+                          setItemPrice(String(cut.unitPriceArs || 3500));
+                          setItemUnit('pieza');
+                          setItemStock(String(cut.quantity || 1));
+                        }
+                      } else if (val.startsWith('pre-')) {
+                        const pre = predefinedCuts.find((p) => p.id === val);
+                        if (pre) {
+                          setItemName(pre.name);
+                          setItemSub(
+                            `${pre.widthMm} × ${pre.heightMm} mm • Melamina 18mm ya cortada`
+                          );
+                          setItemPrice('3500');
+                          setItemUnit('pieza');
+                          setItemStock('5');
+                        }
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full bg-[#272929] border border-white/15 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:border-[#e87a50] focus:outline-none cursor-pointer"
+                  >
+                    <option value="" disabled>
+                      -- Seleccionar corte cargado o predefinido --
+                    </option>
+                    {cutPieces.length > 0 && (
+                      <optgroup label="Cortes Activos en Guillotina (Cutter)">
+                        {cutPieces.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.widthMm}×{p.heightMm} mm • {p.quantity} uds)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {predefinedCuts.length > 0 && (
+                      <optgroup label="Cortes Predefinidos (Plantillas)">
+                        {predefinedCuts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.widthMm}×{p.heightMm} mm)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
                   Nombre del Herraje / Pieza Cortada
@@ -443,7 +519,7 @@ export const ScreenInventario: React.FC<ScreenInventarioProps> = ({
                   required
                   placeholder={
                     itemCategory === 'pieza_cortada'
-                      ? 'Ej. Pieza Cortada: Puerta 600×400mm Carvalho'
+                      ? 'Ej. Frentes de cajón'
                       : 'Ej. Corredera Telescópica 400mm H45'
                   }
                   value={itemName}
@@ -453,12 +529,15 @@ export const ScreenInventario: React.FC<ScreenInventarioProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                  Medidas / Especificación Técnica
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-[#e3e2e2]">
+                    Medidas / Especificación Técnica
+                  </label>
+                  <span className="text-[10px] text-[#a1a1a1]">Editable</span>
+                </div>
                 <input
                   type="text"
-                  placeholder="Ej. 600 × 400 mm • Melamina 18mm canteada"
+                  placeholder="Ej. 450 × 380 mm • Melamina 18mm ya cortada"
                   value={itemSub}
                   onChange={(e) => setItemSub(e.target.value)}
                   className="w-full bg-[#222424] border border-white/15 rounded-xl px-3.5 py-2 text-xs text-white"
@@ -491,7 +570,7 @@ export const ScreenInventario: React.FC<ScreenInventarioProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                    Stock Actual
+                    Stock {editingItemId ? 'Actual' : 'a Agregar'}
                   </label>
                   <input
                     type="number"
@@ -501,6 +580,31 @@ export const ScreenInventario: React.FC<ScreenInventarioProps> = ({
                   />
                 </div>
               </div>
+
+              {/* Cumulative Stock Info Pill */}
+              {(() => {
+                const match = items.find(
+                  (it) =>
+                    it.name.trim().toLowerCase() === itemName.trim().toLowerCase() &&
+                    it.id !== editingItemId
+                );
+                if (match && !editingItemId) {
+                  const added = parseFloat(itemStock) || 0;
+                  const total = match.stockQty + added;
+                  return (
+                    <div className="p-2.5 rounded-xl bg-[#281d18] border border-[#e87a50]/60 space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-[#ffb59b]">
+                        <span>Pieza ya existente en Inventario</span>
+                        <span className="tabular-nums">Stock actual: {match.stockQty} {match.unitLabel}</span>
+                      </div>
+                      <div className="text-[10px] text-[#e3e2e2]">
+                        Lógica acumulativa: <strong className="text-white">{match.stockQty}</strong> existentes + <strong className="text-[#ffb59b]">{added}</strong> nuevas = <strong className="text-[#55e69e]">{total} {match.unitLabel}</strong> totales.
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="flex justify-end gap-2 pt-2">
                 <button

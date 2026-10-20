@@ -37,12 +37,14 @@ import {
   CashMovement,
   FurnitureDesign,
   BomMaterialItem,
+  PredefinedCut,
 } from './types/atelier';
 import {
   INITIAL_BOARDS,
   INITIAL_CUT_PIECES,
   INITIAL_FONDO_BOARDS,
   INITIAL_FONDO_PIECES,
+  INITIAL_PREDEFINED_CUTS,
   INITIAL_EDGE_ROLLS,
   INITIAL_EDGE_PIECES,
   INITIAL_INVENTORY_ITEMS,
@@ -58,6 +60,10 @@ import { ScreenOperaciones } from './components/ScreenOperaciones';
 import { ScreenLogistica } from './components/ScreenLogistica';
 import { ScreenAtelierCAD } from './components/ScreenAtelierCAD';
 import { ScreenCatalogo } from './components/ScreenCatalogo';
+import {
+  saveDocToCloud,
+  subscribeToWorkshopState,
+} from './services/firebase';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -86,6 +92,10 @@ export default function App() {
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isCloudOnline, setIsCloudOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const isApplyingRemoteRef = React.useRef<boolean>(false);
 
   // Helper to load/save in localStorage with fallback
   const getStored = <T,>(key: string, fallback: T): T => {
@@ -107,6 +117,9 @@ export default function App() {
   );
   const [cutPieces, setCutPieces] = useState<CutPiece[]>(() =>
     getStored('mjl_cut_pieces', INITIAL_CUT_PIECES)
+  );
+  const [predefinedCuts, setPredefinedCuts] = useState<PredefinedCut[]>(() =>
+    getStored('mjl_predefined_cuts', INITIAL_PREDEFINED_CUTS)
   );
 
   // State: Cortes Fondo (Placas de Fondo 3mm / 5.5mm)
@@ -182,6 +195,15 @@ export default function App() {
 
   useEffect(() => {
     try {
+      localStorage.setItem(
+        'mjl_predefined_cuts',
+        JSON.stringify(predefinedCuts)
+      );
+    } catch {}
+  }, [predefinedCuts]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('mjl_boards', JSON.stringify(boards));
     } catch {}
   }, [boards]);
@@ -235,6 +257,126 @@ export default function App() {
       localStorage.setItem('mjl_designs', JSON.stringify(designs));
     } catch {}
   }, [designs]);
+
+  // Real-Time Multi-Device Sync with Firebase (onSnapshot) + Offline LocalStorage Fallback
+  useEffect(() => {
+    const handleOnline = () => setIsCloudOnline(true);
+    const handleOffline = () => setIsCloudOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const unsubscribe = subscribeToWorkshopState(
+      (cloudData) => {
+        isApplyingRemoteRef.current = true;
+        if (cloudData.boards && Array.isArray(cloudData.boards)) {
+          setBoards(cloudData.boards);
+        }
+        if (cloudData.fondoBoards && Array.isArray(cloudData.fondoBoards)) {
+          setFondoBoards(cloudData.fondoBoards);
+        }
+        if (cloudData.fondoCutPieces && Array.isArray(cloudData.fondoCutPieces)) {
+          setFondoCutPieces(cloudData.fondoCutPieces);
+        }
+        if (cloudData.inventoryItems && Array.isArray(cloudData.inventoryItems)) {
+          setInventoryItems(cloudData.inventoryItems);
+        }
+        if (cloudData.orders && Array.isArray(cloudData.orders)) {
+          setOrders(cloudData.orders);
+        }
+        if (cloudData.designs && Array.isArray(cloudData.designs)) {
+          setDesigns(cloudData.designs);
+        }
+        if (cloudData.cutPieces && Array.isArray(cloudData.cutPieces)) {
+          setCutPieces(cloudData.cutPieces);
+        }
+        if (cloudData.predefinedCuts && Array.isArray(cloudData.predefinedCuts)) {
+          setPredefinedCuts(cloudData.predefinedCuts);
+        }
+        if (cloudData.edgeRolls && Array.isArray(cloudData.edgeRolls)) {
+          setEdgeRolls(cloudData.edgeRolls);
+        }
+        if (cloudData.edgePieces && Array.isArray(cloudData.edgePieces)) {
+          setEdgePieces(cloudData.edgePieces);
+        }
+        if (typeof cloudData.cashEfectivo === 'number') {
+          setCashEfectivo(cloudData.cashEfectivo);
+        }
+        if (typeof cloudData.cashBancos === 'number') {
+          setCashBancos(cloudData.cashBancos);
+        }
+        if (cloudData.movements && Array.isArray(cloudData.movements)) {
+          setMovements(cloudData.movements);
+        }
+        if (typeof cloudData.cobradoMes === 'number') {
+          setCobradoMes(cloudData.cobradoMes);
+        }
+        if (typeof cloudData.porPercibir === 'number') {
+          setPorPercibir(cloudData.porPercibir);
+        }
+        if (typeof cloudData.extraBillingArs === 'number') {
+          setExtraBillingArs(cloudData.extraBillingArs);
+        }
+        setTimeout(() => {
+          isApplyingRemoteRef.current = false;
+        }, 300);
+      },
+      (onlineStatus) => {
+        setIsCloudOnline(onlineStatus);
+      }
+    );
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      unsubscribe();
+    };
+  }, []);
+
+  // Sync state to Firebase Firestore on critical updates (debounced)
+  useEffect(() => {
+    if (isApplyingRemoteRef.current) return;
+    const timer = setTimeout(() => {
+      saveDocToCloud('workshop_state', 'current', {
+        boards,
+        fondoBoards,
+        fondoCutPieces,
+        inventoryItems,
+        orders,
+        designs,
+        cutPieces,
+        predefinedCuts,
+        edgeRolls,
+        edgePieces,
+        cashEfectivo,
+        cashBancos,
+        movements,
+        cobradoMes,
+        porPercibir,
+        extraBillingArs,
+      }).then((ok) => {
+        if (ok && navigator.onLine) setIsCloudOnline(true);
+      });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [
+    boards,
+    fondoBoards,
+    fondoCutPieces,
+    inventoryItems,
+    orders,
+    designs,
+    cutPieces,
+    predefinedCuts,
+    edgeRolls,
+    edgePieces,
+    cashEfectivo,
+    cashBancos,
+    movements,
+    cobradoMes,
+    porPercibir,
+    extraBillingArs,
+  ]);
+
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -334,6 +476,31 @@ export default function App() {
   const handleResetCleanOrder = () => {
     setCutPieces([]);
     showToast('Guillotina reiniciada en 0 absoluto: 0 cortes, simulador y eficiencia en 0%');
+  };
+
+  // Handlers for Predefined Cuts (CRUD)
+  const handleAddPredefinedCut = (newCut: Omit<PredefinedCut, 'id'>) => {
+    const cut: PredefinedCut = {
+      ...newCut,
+      id: `pre-${Date.now()}`,
+    };
+    setPredefinedCuts((prev) => [...prev, cut]);
+    showToast(`Corte predefinido guardado: ${cut.name}`);
+  };
+
+  const handleUpdatePredefinedCut = (
+    id: string,
+    updated: Partial<PredefinedCut>
+  ) => {
+    setPredefinedCuts((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
+    );
+    showToast('Corte predefinido actualizado correctamente');
+  };
+
+  const handleDeletePredefinedCut = (id: string) => {
+    setPredefinedCuts((prev) => prev.filter((c) => c.id !== id));
+    showToast('Corte predefinido eliminado de la lista');
   };
 
   // Handlers for Cortes Fondo (Placas de Fondo)
@@ -466,6 +633,34 @@ export default function App() {
   const handleAddInventoryItem = (
     newItem: Omit<InventoryItem, 'id' | 'code'>
   ) => {
+    // Check if an item with the same name already exists in inventory (Cumulative Stock Update Logic)
+    const existingIndex = inventoryItems.findIndex(
+      (it) => it.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
+    );
+
+    if (existingIndex >= 0) {
+      const existing = inventoryItems[existingIndex];
+      const previousStock = existing.stockQty;
+      const accumulatedStock = previousStock + newItem.stockQty;
+
+      setInventoryItems((prev) =>
+        prev.map((it, idx) =>
+          idx === existingIndex
+            ? {
+                ...it,
+                stockQty: accumulatedStock,
+                subtitle: newItem.subtitle || it.subtitle,
+                unitPriceArs: newItem.unitPriceArs || it.unitPriceArs,
+              }
+            : it
+        )
+      );
+      showToast(
+        `Stock acumulado: ${existing.name} (${previousStock} + ${newItem.stockQty} = ${accumulatedStock} ${existing.unitLabel})`
+      );
+      return;
+    }
+
     const prefix =
       newItem.category === 'herraje'
         ? 'HER'
@@ -484,6 +679,7 @@ export default function App() {
       },
       ...prev,
     ]);
+    showToast(`Nuevo objeto agregado al Inventario: ${newItem.name}`);
   };
 
   const handleUpdateInventoryItem = (
@@ -498,6 +694,199 @@ export default function App() {
   const handleDeleteInventoryItem = (id: string) => {
     setInventoryItems((prev) => prev.filter((it) => it.id !== id));
     showToast('Objeto eliminado del Inventario de Taller');
+  };
+
+  // One-Click "Confirm Saw Cut" Action ("✅ Marcar Placa como Cortada")
+  const handleConfirmSawCut = (data: {
+    boardType: 'melamina' | 'fondo';
+    boardName: string;
+    boardsCount: number;
+    pieces: { name: string; widthMm: number; heightMm: number; quantity: number }[];
+    largestScrap?: { widthMm: number; heightMm: number; areaM2: number };
+    saveScrap: boolean;
+  }) => {
+    setInventoryItems((prev) => {
+      let updated = [...prev];
+
+      // 1. Deduct Base Sheet from Insumos / Placas (category 'material')
+      const boardKeyword = data.boardType === 'melamina' ? 'Melamina' : 'Fondo';
+      const boardIndex = updated.findIndex(
+        (it) =>
+          it.category === 'material' &&
+          (it.name.toLowerCase().includes(data.boardName.toLowerCase()) ||
+            it.name.toLowerCase().includes(boardKeyword.toLowerCase()))
+      );
+
+      if (boardIndex >= 0) {
+        const currentStock = updated[boardIndex].stockQty;
+        const newStock = Math.max(0, currentStock - data.boardsCount);
+        updated[boardIndex] = { ...updated[boardIndex], stockQty: newStock };
+      } else {
+        // Fallback: create base sheet entry with standard initial stock - boardsCount
+        updated.push({
+          id: `inv-mat-${Date.now()}`,
+          code: `MAT-${String(updated.length + 1).padStart(2, '0')}`,
+          name: `Placa ${data.boardName}`,
+          subtitle: `${data.boardType === 'melamina' ? 'Melamina 18mm' : 'Fibroplus 3mm'} estándar`,
+          category: 'material',
+          unitPriceArs: data.boardType === 'melamina' ? 82000 : 38500,
+          unitLabel: 'placa',
+          stockQty: Math.max(0, 10 - data.boardsCount),
+          step: 1,
+          iconType: 'board',
+        });
+      }
+
+      // 2. Accumulate Cut Pieces into Pieza Madera (category 'pieza_cortada') using cumulative stock logic
+      data.pieces.forEach((piece) => {
+        const pieceIdx = updated.findIndex(
+          (it) =>
+            it.category === 'pieza_cortada' &&
+            it.name.toLowerCase().trim() === piece.name.toLowerCase().trim()
+        );
+
+        if (pieceIdx >= 0) {
+          updated[pieceIdx] = {
+            ...updated[pieceIdx],
+            stockQty: updated[pieceIdx].stockQty + piece.quantity,
+          };
+        } else {
+          updated.push({
+            id: `inv-pz-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            code: `MAD-${String(updated.length + 1).padStart(2, '0')}`,
+            name: piece.name,
+            subtitle: `${piece.widthMm} × ${piece.heightMm} mm • ${
+              data.boardType === 'melamina' ? 'Melamina 18mm' : 'Fibroplus 3mm'
+            } cortada`,
+            category: 'pieza_cortada',
+            unitPriceArs: 3500,
+            unitLabel: 'pieza',
+            stockQty: piece.quantity,
+            step: 1,
+            iconType: 'board',
+          });
+        }
+      });
+
+      // 3. Scrap/Offcut Recovery Prompt (if confirmed)
+      if (data.saveScrap && data.largestScrap) {
+        updated.push({
+          id: `inv-ret-${Date.now()}`,
+          code: `RET-${String(updated.length + 1).padStart(2, '0')}`,
+          name: `Retazo Útil (${data.largestScrap.widthMm} × ${data.largestScrap.heightMm} mm)`,
+          subtitle: `${data.boardName} • ${data.largestScrap.areaM2} m² libre aprovechable`,
+          category: 'material',
+          unitPriceArs: Math.round(data.largestScrap.areaM2 * 18000),
+          unitLabel: 'retazo',
+          stockQty: 1,
+          step: 1,
+          iconType: 'board',
+        });
+      }
+
+      return updated;
+    });
+
+    // Also add saved offcut as a selectable custom base board for future cuts
+    if (data.saveScrap && data.largestScrap) {
+      const customBoard: MelaminaBoard = {
+        id: `retazo-${Date.now()}`,
+        name: `Retazo ${data.boardName} (${data.largestScrap.widthMm}×${data.largestScrap.heightMm})`,
+        widthMm: data.largestScrap.widthMm,
+        heightMm: data.largestScrap.heightMm,
+        thicknessMm: data.boardType === 'melamina' ? 18 : 3,
+        costArs: Math.round(data.largestScrap.areaM2 * 18000),
+        swatchColor: data.boardType === 'melamina' ? '#c99768' : '#f4f4f2',
+      };
+      if (data.boardType === 'melamina') {
+        setBoards((prev) => [...prev, customBoard]);
+      } else {
+        setFondoBoards((prev) => [...prev, customBoard]);
+      }
+    }
+
+    const totalCutsCount = data.pieces.reduce((sum, p) => sum + p.quantity, 0);
+    showToast(
+      `✅ Corte registrado: ${data.boardsCount} placa(s) descontada(s), ${totalCutsCount} piezas acumuladas en inventario${
+        data.saveScrap && data.largestScrap
+          ? ' (+ retazo útil guardado como placa seleccionable)'
+          : ''
+      }`
+    );
+  };
+
+  // Deduct all required pre-cut pieces and hardware from Inventory when an order enters assembly
+  const handleDeductOrderAssemblyStock = (order: WorkshopOrder) => {
+    const isRack = order.itemsSummary.toLowerCase().includes('rack');
+    const woodTargets = [
+      { keyword: 'Tapa', qty: 1 },
+      { keyword: 'Lateral', qty: 2 },
+      { keyword: 'Frente', qty: isRack ? 2 : 1 },
+    ];
+    const hwTargets = [
+      { keyword: 'Corredera', qty: isRack ? 2 : 1 },
+      { keyword: 'Tirador', qty: isRack ? 2 : 1 },
+      { keyword: 'Pata', qty: 4 },
+    ];
+
+    setInventoryItems((prev) =>
+      prev.map((it) => {
+        if (it.category === 'pieza_cortada') {
+          const wt = woodTargets.find((w) =>
+            it.name.toLowerCase().includes(w.keyword.toLowerCase())
+          );
+          if (wt) {
+            return { ...it, stockQty: Math.max(0, it.stockQty - wt.qty) };
+          }
+        }
+        if (it.category === 'herraje') {
+          const ht = hwTargets.find((h) =>
+            it.name.toLowerCase().includes(h.keyword.toLowerCase())
+          );
+          if (ht) {
+            return { ...it, stockQty: Math.max(0, it.stockQty - ht.qty) };
+          }
+        }
+        return it;
+      })
+    );
+
+    showToast(
+      `🔨 Insumos de armado descontados del Inventario para ${order.code} (${order.clientName})`
+    );
+  };
+
+  // 1-Click Action: Inject missing wood pieces into Guillotine 2D active cut list
+  const handleLoadMissingPiecesToCutter = (
+    missingPieces: Omit<CutPiece, 'id' | 'numberLabel'>[]
+  ) => {
+    if (!missingPieces || missingPieces.length === 0) {
+      showToast('No hay piezas faltantes que cargar.');
+      return;
+    }
+
+    setCutPieces((prev) => {
+      let updated = [...prev];
+      missingPieces.forEach((mp) => {
+        const existIdx = updated.findIndex((p) => p.name.toLowerCase() === mp.name.toLowerCase());
+        if (existIdx >= 0) {
+          updated[existIdx] = {
+            ...updated[existIdx],
+            quantity: updated[existIdx].quantity + mp.quantity,
+          };
+        } else {
+          updated.push({
+            ...mp,
+            id: `cut-bom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            numberLabel: `${updated.length + 1}`,
+          });
+        }
+      });
+      return updated;
+    });
+
+    setActiveScreen('guillotina');
+    showToast(`🛠️ ${missingPieces.length} medidas cargadas en la Guillotina 2D lista para corte`);
   };
 
   // Handlers for Orders & Cash
@@ -647,6 +1036,19 @@ export default function App() {
     });
   };
 
+  const handleDeleteDesign = (id: string) => {
+    setDesigns((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleUpdateDesign = (
+    id: string,
+    updated: Partial<FurnitureDesign>
+  ) => {
+    setDesigns((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, ...updated } : d))
+    );
+  };
+
   const activeFreightOrder: WorkshopOrder =
     orders.find((o) => o.id === selectedFreightOrderId) ||
     orders[0] || {
@@ -706,9 +1108,15 @@ export default function App() {
                   Muebles J&amp;L
                 </div>
                 <div className="flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wider text-[#ffb59b] mt-0.5 leading-tight">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#e87a50] shrink-0" />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      isCloudOnline ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`}
+                  />
                   <span className="truncate">
-                    TALLER ACTIVO • VILLA LUZURIAGA
+                    {isCloudOnline
+                      ? '🟢 Sincronizado en Nube'
+                      : '🟠 Modo Local Offline'}
                   </span>
                 </div>
               </div>
@@ -718,12 +1126,24 @@ export default function App() {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() =>
-                  showToast('Sincronizado con Nube J&L • Backup en tiempo real activo')
+                  showToast(
+                    isCloudOnline
+                      ? '🟢 Sincronizado en Nube (3 celulares en tiempo real)'
+                      : '🟠 Modo Local Offline • Guardado en caché local'
+                  )
                 }
-                title="Estado de Sincronización Cloud"
+                title={
+                  isCloudOnline
+                    ? '🟢 Sincronizado en Nube'
+                    : '🟠 Modo Local Offline'
+                }
                 className="w-9 h-9 rounded-xl active:bg-white/10 flex items-center justify-center text-[#c8c6c5] transition-colors cursor-pointer"
               >
-                <CloudCheck className="w-5 h-5" />
+                <CloudCheck
+                  className={`w-5 h-5 ${
+                    isCloudOnline ? 'text-emerald-400' : 'text-amber-400'
+                  }`}
+                />
               </button>
 
               <div className="relative">
@@ -796,6 +1216,11 @@ export default function App() {
               onTogglePieceRotation={handleTogglePieceRotation}
               onAddCutPiece={handleAddCutPiece}
               onResetCleanOrder={handleResetCleanOrder}
+              predefinedCuts={predefinedCuts}
+              onAddPredefinedCut={handleAddPredefinedCut}
+              onUpdatePredefinedCut={handleUpdatePredefinedCut}
+              onDeletePredefinedCut={handleDeletePredefinedCut}
+              onConfirmSawCut={handleConfirmSawCut}
               onShowToast={showToast}
             />
           )}
@@ -814,6 +1239,7 @@ export default function App() {
               onTogglePieceRotation={handleToggleFondoPieceRotation}
               onAddCutPiece={handleAddFondoCutPiece}
               onResetCleanOrder={handleResetCleanFondoOrder}
+              onConfirmSawCut={handleConfirmSawCut}
               onShowToast={showToast}
             />
           )}
@@ -831,6 +1257,8 @@ export default function App() {
               onUpdatePiece={handleUpdateEdgePiece}
               onDeletePiece={handleDeleteEdgePiece}
               onResetPieces={handleResetEdgePieces}
+              cutPieces={cutPieces}
+              onSyncWithGuillotine={(imported) => setEdgePieces(imported)}
               onShowToast={showToast}
             />
           )}
@@ -841,6 +1269,8 @@ export default function App() {
               onAddItem={handleAddInventoryItem}
               onUpdateItem={handleUpdateInventoryItem}
               onDeleteItem={handleDeleteInventoryItem}
+              cutPieces={cutPieces}
+              predefinedCuts={predefinedCuts}
               onGoToCatalogo={() => setActiveScreen('catalogo')}
               onShowToast={showToast}
             />
@@ -873,6 +1303,10 @@ export default function App() {
               movements={movements}
               onAddCashMovement={handleAddCashMovement}
               onResetCash={handleResetCash}
+              inventoryItems={inventoryItems}
+              designs={designs}
+              onLoadMissingPiecesToCutter={handleLoadMissingPiecesToCutter}
+              onDeductOrderAssemblyStock={handleDeductOrderAssemblyStock}
               onShowToast={showToast}
             />
           )}
@@ -904,6 +1338,10 @@ export default function App() {
               movements={movements}
               onAddCashMovement={handleAddCashMovement}
               onResetCash={handleResetCash}
+              inventoryItems={inventoryItems}
+              designs={designs}
+              onLoadMissingPiecesToCutter={handleLoadMissingPiecesToCutter}
+              onDeductOrderAssemblyStock={handleDeductOrderAssemblyStock}
               onShowToast={showToast}
             />
           )}
@@ -943,6 +1381,9 @@ export default function App() {
               onAddBomItem={handleAddBomItem}
               onSaveDesignCost={handleSaveDesignCost}
               onAddDesign={handleAddDesign}
+              onDeleteDesign={handleDeleteDesign}
+              onUpdateDesign={handleUpdateDesign}
+              onLoadMissingPiecesToCutter={handleLoadMissingPiecesToCutter}
               inventoryItems={inventoryItems}
               onGoToInventario={() => setActiveScreen('inventario')}
               onOpenCadViewer={() => setActiveScreen('cad')}

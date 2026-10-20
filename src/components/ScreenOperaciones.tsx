@@ -22,8 +22,17 @@ import {
   Hammer,
   X,
   Droplets,
+  Wrench,
+  AlertTriangle,
 } from 'lucide-react';
-import { WorkshopOrder, OrderStage, CashMovement } from '../types/atelier';
+import {
+  WorkshopOrder,
+  OrderStage,
+  CashMovement,
+  InventoryItem,
+  FurnitureDesign,
+  CutPiece,
+} from '../types/atelier';
 import { formatARS } from '../data/initialData';
 
 interface ScreenOperacionesProps {
@@ -51,6 +60,10 @@ interface ScreenOperacionesProps {
     channel: 'efectivo' | 'bancos'
   ) => void;
   onResetCash: () => void;
+  inventoryItems?: InventoryItem[];
+  designs?: FurnitureDesign[];
+  onLoadMissingPiecesToCutter?: (pieces: Omit<CutPiece, 'id' | 'numberLabel'>[]) => void;
+  onDeductOrderAssemblyStock?: (order: WorkshopOrder) => void;
   onShowToast: (msg: string) => void;
 }
 
@@ -71,8 +84,13 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   onUpdatePorPercibir,
   extraBillingArs = 0,
   onUpdateExtraBillingArs,
+  movements,
   onAddCashMovement,
   onResetCash,
+  inventoryItems = [],
+  designs = [],
+  onLoadMissingPiecesToCutter,
+  onDeductOrderAssemblyStock,
   onShowToast,
 }) => {
   // Meta de Fabricación: Suma todas las ventas independientemente del tipo de mueble + simulador
@@ -111,6 +129,130 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
   const [editItems, setEditItems] = useState('');
   const [editTotal, setEditTotal] = useState('');
   const [editMaterial, setEditMaterial] = useState('');
+
+  // Helper to compare an order against inventory items (BOM Sync)
+  const getOrderBomReadiness = (order: WorkshopOrder) => {
+    const matchedDesign = designs.find(
+      (d) =>
+        order.itemsSummary.toLowerCase().includes(d.catalogTitle.toLowerCase()) ||
+        order.itemsSummary.toLowerCase().includes(d.name.toLowerCase())
+    );
+    const isRack = order.itemsSummary.toLowerCase().includes('rack');
+    const drawerCount =
+      matchedDesign?.drawerCount !== undefined
+        ? matchedDesign.drawerCount
+        : isRack
+        ? 2
+        : 1;
+    const wMm = matchedDesign?.widthMm || (isRack ? 1800 : 450);
+    const hMm = matchedDesign?.heightMm || (isRack ? 520 : 550);
+    const dMm = matchedDesign?.depthMm || (isRack ? 420 : 380);
+
+    const neededPieces = [
+      { name: 'Tapa', qty: 1, w: wMm, h: dMm },
+      { name: 'Lateral', qty: 2, w: hMm, h: dMm },
+      ...(drawerCount > 0
+        ? [{ name: 'Frente', qty: drawerCount, w: Math.max(120, wMm - 42), h: 180 }]
+        : []),
+    ];
+
+    let missingWoodPieces: Omit<CutPiece, 'id' | 'numberLabel'>[] = [];
+    let missingWoodCount = 0;
+    let missingEdgeMm = 0;
+
+    neededPieces.forEach((np) => {
+      const match = inventoryItems.find(
+        (it) =>
+          it.category === 'pieza_cortada' &&
+          it.name.toLowerCase().includes(np.name.toLowerCase())
+      );
+      const stock = match ? match.stockQty : 0;
+      if (stock < np.qty) {
+        const diff = np.qty - stock;
+        missingWoodCount += diff;
+        missingEdgeMm += (np.w * 2 + np.h) * diff;
+        missingWoodPieces.push({
+          name: `${np.name} (${order.code})`,
+          subtitle: `Pieza faltante p/ ${order.itemsSummary}`,
+          widthMm: np.w,
+          heightMm: np.h,
+          quantity: diff,
+          unitPriceArs: 4800,
+          edgesLabel: 'Cantos 2L Frontal',
+          edgesType: '2L',
+          allowRotation: true,
+          mandatoryGrain: false,
+        });
+      }
+    });
+
+    const missingEdgeMeters = Number((missingEdgeMm / 1000).toFixed(1));
+
+    const neededHardware = [
+      ...(drawerCount > 0
+        ? [
+            {
+              keyword: 'Corredera',
+              qty: drawerCount,
+              label: `pares de correderas de ${dMm >= 400 ? '350mm' : '300mm'}`,
+            },
+            {
+              keyword: 'Tirador',
+              qty: drawerCount,
+              label: 'tiradores minimalistas',
+            },
+          ]
+        : []),
+      { keyword: 'Pata', qty: 4, label: 'patas macizas' },
+    ];
+
+    const missingHardwareDetails: string[] = [];
+    neededHardware.forEach((hw) => {
+      const match = inventoryItems.find(
+        (it) =>
+          it.category === 'herraje' &&
+          it.name.toLowerCase().includes(hw.keyword.toLowerCase())
+      );
+      const stock = match ? match.stockQty : 0;
+      if (stock < hw.qty) {
+        const diff = hw.qty - stock;
+        missingHardwareDetails.push(`Faltan ${diff} ${hw.label}`);
+      }
+    });
+
+    if (missingWoodCount === 0 && missingHardwareDetails.length === 0) {
+      return {
+        status: 'ready' as const,
+        badge: '🟢 Stock Completo para Armar (Sin usar sierra)',
+        detail: 'Todas las piezas pre-cortadas y herrajes disponibles en taller',
+        color: 'text-green-400 bg-green-500/10 border-green-500/30',
+        missingWoodCount: 0,
+        missingWoodPieces: [],
+      };
+    } else if (missingWoodCount > 0) {
+      return {
+        status: 'needs_saw' as const,
+        badge: `🟡 Faltan cortar ${missingWoodCount} piezas / Pegar ${missingEdgeMeters} m de filo`,
+        detail:
+          missingHardwareDetails.length > 0
+            ? `Además: ${missingHardwareDetails.join(' • ')}`
+            : 'Herrajes completos en stock',
+        color: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+        missingWoodCount,
+        missingWoodPieces,
+      };
+    } else {
+      return {
+        status: 'needs_hardware' as const,
+        badge: '🔴 Faltan Herrajes/Insumos',
+        detail: missingHardwareDetails.join(' • '),
+        color: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+        missingWoodCount: 0,
+        missingWoodPieces: [],
+      };
+    }
+  };
+
 
   // KPI Edit modal state
   const [showEditKpiModal, setShowEditKpiModal] = useState(false);
@@ -968,6 +1110,53 @@ export const ScreenOperaciones: React.FC<ScreenOperacionesProps> = ({
                           <span>{order.materialSpec}</span>
                         </div>
                       </div>
+
+                      {/* BOM Inventory Readiness Check & 1-Click Actions */}
+                      {(() => {
+                        const readiness = getOrderBomReadiness(order);
+                        return (
+                          <div className="space-y-2">
+                            <div
+                              className={`p-2.5 rounded-xl border space-y-1.5 ${readiness.color}`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-bold leading-tight">
+                                  {readiness.badge}
+                                </span>
+                                {readiness.status === 'needs_saw' && onLoadMissingPiecesToCutter && (
+                                  <button
+                                    onClick={() => {
+                                      onLoadMissingPiecesToCutter(readiness.missingWoodPieces);
+                                      onShowToast(
+                                        `🛠️ ${readiness.missingWoodPieces.length} piezas faltantes cargadas al Optimizador de Corte`
+                                      );
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-[#e87a50] text-[#121414] text-[10px] font-bold shrink-0 flex items-center gap-1 cursor-pointer hover:bg-[#f0855c] transition-colors shadow-xs"
+                                  >
+                                    <Wrench className="w-3 h-3" />
+                                    <span>Enviar a Sierra 2D</span>
+                                  </button>
+                                )}
+                              </div>
+                              {readiness.detail && (
+                                <div className="text-[10.5px] opacity-90 font-medium">
+                                  {readiness.detail}
+                                </div>
+                              )}
+                            </div>
+
+                            {onDeductOrderAssemblyStock && (
+                              <button
+                                onClick={() => onDeductOrderAssemblyStock(order)}
+                                className="w-full py-2 px-3 rounded-xl bg-[#222424] hover:bg-[#2c2f2f] border border-white/10 text-xs font-bold text-[#ffb59b] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <Hammer className="w-3.5 h-3.5 text-[#e87a50]" />
+                                <span>Descontar Insumos de Armado</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* 4-Stage Interactive Stepper */}
                       <div className="pt-1 px-1">
