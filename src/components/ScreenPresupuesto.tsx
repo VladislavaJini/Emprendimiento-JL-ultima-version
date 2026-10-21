@@ -15,7 +15,7 @@ import {
   Disc,
   RotateCcw,
 } from 'lucide-react';
-import { formatARS } from '../data/initialData';
+import { formatARS, formatMm, parseMm } from '../data/initialData';
 import {
   InventoryItem,
   CutPiece,
@@ -48,10 +48,80 @@ export interface PresupuestoPiece {
 
 export interface PresupuestoHardware {
   id: string;
+  inventoryItemId?: string;
   name: string;
   quantity: number;
   unitPriceArs: number;
 }
+
+export const DEFAULT_PRESUPUESTO_MESA_PIECES: PresupuestoPiece[] = [
+  {
+    id: 'def-techo',
+    name: 'Techo',
+    lengthMm: 400,
+    widthMm: 335,
+    thicknessMm: 18,
+    quantity: 1,
+    edgeCode: '3L',
+  },
+  {
+    id: 'def-piso',
+    name: 'Piso',
+    lengthMm: 400,
+    widthMm: 335,
+    thicknessMm: 18,
+    quantity: 1,
+    edgeCode: '3L',
+  },
+  {
+    id: 'def-laterales',
+    name: 'Laterales',
+    lengthMm: 280,
+    widthMm: 335,
+    thicknessMm: 18,
+    quantity: 2,
+    edgeCode: '1L1P',
+  },
+  {
+    id: 'def-techo-secador',
+    name: 'Techo secador',
+    lengthMm: 500,
+    widthMm: 335,
+    thicknessMm: 18,
+    quantity: 1,
+    edgeCode: '3L',
+  },
+  {
+    id: 'def-mesita-grande',
+    name: 'Mesita grande',
+    lengthMm: 700,
+    widthMm: 335,
+    thicknessMm: 18,
+    quantity: 1,
+    edgeCode: '3L',
+  },
+];
+
+export const DEFAULT_PRESUPUESTO_DRAWER_PIECES: PresupuestoPiece[] = [
+  {
+    id: 'def-frente',
+    name: 'Frente',
+    lengthMm: 395,
+    widthMm: 160,
+    thicknessMm: 18,
+    quantity: 1,
+    edgeCode: '4L',
+  },
+  {
+    id: 'def-cajones',
+    name: 'Cajones',
+    lengthMm: 301.5,
+    widthMm: 83,
+    thicknessMm: 18,
+    quantity: 2,
+    edgeCode: '1L',
+  },
+];
 
 interface ScreenPresupuestoProps {
   onBack: () => void;
@@ -89,16 +159,16 @@ export const EDGE_OPTIONS: {
     short: '1 Lado (1P)',
   },
   {
-    code: '2L',
-    sidesCount: 2,
-    label: '2 Lados (2 Largos)',
-    short: '2 Lados (2L)',
-  },
-  {
     code: '1L1P',
     sidesCount: 2,
     label: '2 Lados (1 Largo + 1 Prof.)',
     short: '2 Lados (1L+1P)',
+  },
+  {
+    code: '2L',
+    sidesCount: 2,
+    label: '2 Lados (2 Largos)',
+    short: '2 Lados (2L)',
   },
   {
     code: '2P',
@@ -133,7 +203,7 @@ const QUICK_SIDES_BUTTONS: {
 }[] = [
   { sides: 0, defaultCode: '0L', label: '0 Lados' },
   { sides: 1, defaultCode: '1L', label: '1 Lado' },
-  { sides: 2, defaultCode: '2L', label: '2 Lados' },
+  { sides: 2, defaultCode: '1L1P', label: '2 Lados' },
   { sides: 3, defaultCode: '3L', label: '3 Lados' },
   { sides: 4, defaultCode: '4L', label: '4 Lados' },
 ];
@@ -213,10 +283,12 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
   onSendPiecesToGuillotine,
   onShowToast,
 }) => {
-  // Base Board & Edge Banding Configuration (for accurate cut & edge calculations)
+  // Base Board & Edge Banding Configuration (in millimeters)
   const [boardWidthMm, setBoardWidthMm] = useState<number>(() => {
     try {
-      const s = localStorage.getItem('mjl_pres_v2_board_w');
+      const s =
+        localStorage.getItem('mjl_v4_pres_board_w') ||
+        localStorage.getItem('mjl_pres_v2_board_w');
       if (s) return Math.max(100, Number(JSON.parse(s)) || 2750);
     } catch {}
     return boards[0]?.widthMm || 2750;
@@ -224,7 +296,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
 
   const [boardHeightMm, setBoardHeightMm] = useState<number>(() => {
     try {
-      const s = localStorage.getItem('mjl_pres_v2_board_h');
+      const s =
+        localStorage.getItem('mjl_v4_pres_board_h') ||
+        localStorage.getItem('mjl_pres_v2_board_h');
       if (s) return Math.max(100, Number(JSON.parse(s)) || 1830);
     } catch {}
     return boards[0]?.heightMm || 1830;
@@ -232,7 +306,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
 
   const [boardPriceArs, setBoardPriceArs] = useState<number>(() => {
     try {
-      const s = localStorage.getItem('mjl_pres_v2_board_price');
+      const s =
+        localStorage.getItem('mjl_v4_pres_board_price') ||
+        localStorage.getItem('mjl_pres_v2_board_price');
       if (s) return Math.max(0, Number(JSON.parse(s)) || 0);
     } catch {}
     return boards[0]?.costArs || 0;
@@ -241,7 +317,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
   const [edgePricePerMeterArs, setEdgePricePerMeterArs] = useState<number>(
     () => {
       try {
-        const s = localStorage.getItem('mjl_pres_v2_edge_price_m');
+        const s =
+          localStorage.getItem('mjl_v4_pres_edge_price_m') ||
+          localStorage.getItem('mjl_pres_v2_edge_price_m');
         if (s) return Math.max(0, Number(JSON.parse(s)) || 0);
       } catch {}
       if (edgeRolls[0] && edgeRolls[0].rollLengthMeters > 0) {
@@ -249,42 +327,52 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
           edgeRolls[0].rollPriceArs / edgeRolls[0].rollLengthMeters
         );
       }
-      return 0;
+      return 650;
     }
   );
 
-  // 1. MESITA (Estructura) Cuts & Hardware — Empty by default
+  // 1. MESITA (Estructura) Cuts & Hardware — Pre-loaded with requested default cuts
   const [mesaPieces, setMesaPieces] = useState<PresupuestoPiece[]>(() => {
     try {
-      const saved = localStorage.getItem('mjl_pres_v2_mesa_pieces');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('mjl_v4_pres_mesa_pieces');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch {}
-    return [];
+    return DEFAULT_PRESUPUESTO_MESA_PIECES.map((p) => ({ ...p }));
   });
 
   const [mesaHardware, setMesaHardware] = useState<PresupuestoHardware[]>(
     () => {
       try {
-        const saved = localStorage.getItem('mjl_pres_v2_mesa_hw');
+        const saved =
+          localStorage.getItem('mjl_v4_pres_mesa_hw') ||
+          localStorage.getItem('mjl_pres_v2_mesa_hw');
         if (saved) return JSON.parse(saved);
       } catch {}
       return [];
     }
   );
 
-  // 2. CAJONES (Por separado) Cuts & Hardware — Empty by default
+  // 2. CAJONES (Por separado) Cuts & Hardware — Pre-loaded with Frente 395x160 & Cajones 301,5x83
   const [drawerPieces, setDrawerPieces] = useState<PresupuestoPiece[]>(() => {
     try {
-      const saved = localStorage.getItem('mjl_pres_v2_drawer_pieces');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('mjl_v4_pres_drawer_pieces');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch {}
-    return [];
+    return DEFAULT_PRESUPUESTO_DRAWER_PIECES.map((p) => ({ ...p }));
   });
 
   const [drawerHardware, setDrawerHardware] = useState<PresupuestoHardware[]>(
     () => {
       try {
-        const saved = localStorage.getItem('mjl_pres_v2_drawer_hw');
+        const saved =
+          localStorage.getItem('mjl_v4_pres_drawer_hw') ||
+          localStorage.getItem('mjl_pres_v2_drawer_hw');
         if (saved) return JSON.parse(saved);
       } catch {}
       return [];
@@ -294,47 +382,66 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
   const [drawerUnitsMultiplier, setDrawerUnitsMultiplier] = useState<number>(
     () => {
       try {
-        const saved = localStorage.getItem('mjl_pres_v2_drawer_mult');
+        const saved =
+          localStorage.getItem('mjl_v4_pres_drawer_mult') ||
+          localStorage.getItem('mjl_pres_v2_drawer_mult');
         if (saved) return Math.max(1, Number(JSON.parse(saved)) || 1);
       } catch {}
       return 1;
     }
   );
 
-  // Automatic localStorage persistence
+  // Inline selectors to quickly pick hardware from Inventory for Cajones and Mesita
+  const [selectedDrawerInvHwId, setSelectedDrawerInvHwId] =
+    useState<string>('');
+  const [selectedDrawerInvHwQty, setSelectedDrawerInvHwQty] =
+    useState<string>('1');
+  const [selectedMesaInvHwId, setSelectedMesaInvHwId] = useState<string>('');
+  const [selectedMesaInvHwQty, setSelectedMesaInvHwQty] =
+    useState<string>('1');
+
+  const selectableInventoryHardware =
+    inventoryItems.filter((i) => i && i.category === 'herraje').length > 0
+      ? inventoryItems.filter((i) => i && i.category === 'herraje')
+      : inventoryItems;
+
+  // Immediate localStorage persistence
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_pres_v2_board_w', JSON.stringify(boardWidthMm));
       localStorage.setItem(
-        'mjl_pres_v2_board_h',
+        'mjl_v4_pres_board_w',
+        JSON.stringify(boardWidthMm)
+      );
+      localStorage.setItem(
+        'mjl_v4_pres_board_h',
         JSON.stringify(boardHeightMm)
       );
       localStorage.setItem(
-        'mjl_pres_v2_board_price',
+        'mjl_v4_pres_board_price',
         JSON.stringify(boardPriceArs)
       );
       localStorage.setItem(
-        'mjl_pres_v2_edge_price_m',
+        'mjl_v4_pres_edge_price_m',
         JSON.stringify(edgePricePerMeterArs)
       );
       localStorage.setItem(
-        'mjl_pres_v2_mesa_pieces',
+        'mjl_v4_pres_mesa_pieces',
         JSON.stringify(mesaPieces)
       );
       localStorage.setItem(
-        'mjl_pres_v2_mesa_hw',
+        'mjl_v4_pres_mesa_hw',
         JSON.stringify(mesaHardware)
       );
       localStorage.setItem(
-        'mjl_pres_v2_drawer_pieces',
+        'mjl_v4_pres_drawer_pieces',
         JSON.stringify(drawerPieces)
       );
       localStorage.setItem(
-        'mjl_pres_v2_drawer_hw',
+        'mjl_v4_pres_drawer_hw',
         JSON.stringify(drawerHardware)
       );
       localStorage.setItem(
-        'mjl_pres_v2_drawer_mult',
+        'mjl_v4_pres_drawer_mult',
         JSON.stringify(drawerUnitsMultiplier)
       );
     } catch {}
@@ -356,7 +463,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
   const [mesaCutW, setMesaCutW] = useState('');
   const [mesaCutT, setMesaCutT] = useState('18');
   const [mesaCutQty, setMesaCutQty] = useState('1');
-  const [mesaCutEdge, setMesaCutEdge] = useState<EdgeCode>('1L');
+  const [mesaCutEdge, setMesaCutEdge] = useState<EdgeCode>('3L');
 
   // Quick Add inputs for Cajones Cuts
   const [drwCutName, setDrwCutName] = useState('');
@@ -475,12 +582,12 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
   const totalDefinedPieces = totalMesaCutUnits + totalDrawerCutUnits;
 
   // =========================================================================
-  // HANDLERS FOR MESITA & CAJONES CUTS
+  // HANDLERS FOR MESITA & CAJONES CUTS (Supporting decimals like 301,5 mm)
   // =========================================================================
   const handleAddMesaCut = () => {
-    const l = parseInt(mesaCutL, 10);
-    const w = parseInt(mesaCutW, 10);
-    const t = parseInt(mesaCutT, 10) || 18;
+    const l = parseMm(mesaCutL, 0);
+    const w = parseMm(mesaCutW, 0);
+    const t = parseMm(mesaCutT, 18);
     const q = Math.max(1, parseInt(mesaCutQty, 10) || 1);
 
     if (!l || l <= 0 || !w || w <= 0) {
@@ -505,13 +612,15 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
     setMesaCutL('');
     setMesaCutW('');
     setMesaCutQty('1');
-    onShowToast(`Corte de mesita agregado: ${newPiece.name} (${l}×${w} mm)`);
+    onShowToast(
+      `Corte de mesita agregado: ${newPiece.name} (${formatMm(l)}×${formatMm(w)} mm)`
+    );
   };
 
   const handleAddDrawerCut = () => {
-    const l = parseInt(drwCutL, 10);
-    const w = parseInt(drwCutW, 10);
-    const t = parseInt(drwCutT, 10) || 18;
+    const l = parseMm(drwCutL, 0);
+    const w = parseMm(drwCutW, 0);
+    const t = parseMm(drwCutT, 18);
     const q = Math.max(1, parseInt(drwCutQty, 10) || 1);
 
     if (!l || l <= 0 || !w || w <= 0) {
@@ -536,7 +645,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
     setDrwCutL('');
     setDrwCutW('');
     setDrwCutQty('1');
-    onShowToast(`Corte de cajón agregado: ${newPiece.name} (${l}×${w} mm)`);
+    onShowToast(
+      `Corte de cajón agregado: ${newPiece.name} (${formatMm(l)}×${formatMm(w)} mm)`
+    );
   };
 
   const openEditCutModal = (
@@ -555,9 +666,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
   const handleSaveEditCut = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCutTarget) return;
-    const l = Math.max(10, parseInt(editCutL, 10) || 100);
-    const w = Math.max(10, parseInt(editCutW, 10) || 100);
-    const t = Math.max(3, parseInt(editCutT, 10) || 18);
+    const l = Math.max(10, parseMm(editCutL, 100));
+    const w = Math.max(10, parseMm(editCutW, 100));
+    const t = Math.max(3, parseMm(editCutT, 18));
     const q = Math.max(1, parseInt(editCutQty, 10) || 1);
 
     const updatedPiece: PresupuestoPiece = {
@@ -581,12 +692,67 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
     }
 
     setEditingCutTarget(null);
-    onShowToast(`Corte actualizado: ${updatedPiece.name}`);
+    onShowToast(
+      `Corte actualizado: ${updatedPiece.name} (${formatMm(l)}×${formatMm(w)} mm)`
+    );
   };
 
   // =========================================================================
-  // HANDLERS FOR HARDWARE (MESITA & CAJONES)
+  // HANDLERS FOR HARDWARE (FROM INVENTORY OR CUSTOM)
   // =========================================================================
+  const handleAddInventoryHardwareToSection = (section: 'mesa' | 'cajon') => {
+    const selectedId =
+      section === 'cajon' ? selectedDrawerInvHwId : selectedMesaInvHwId;
+    const rawQty =
+      section === 'cajon' ? selectedDrawerInvHwQty : selectedMesaInvHwQty;
+    if (!selectedId) {
+      onShowToast('Seleccioná un herraje de tu Inventario primero');
+      return;
+    }
+    const found = inventoryItems.find((i) => i.id === selectedId);
+    if (!found) return;
+    const qty = Math.max(1, parseInt(rawQty, 10) || 1);
+
+    const updater = (prev: PresupuestoHardware[]) => {
+      const idx = prev.findIndex(
+        (h) => h.inventoryItemId === found.id || h.name === found.name
+      );
+      if (idx >= 0) {
+        return prev.map((h, i) =>
+          i === idx
+            ? {
+                ...h,
+                quantity: h.quantity + qty,
+                unitPriceArs: found.unitPriceArs,
+              }
+            : h
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: `hw-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          inventoryItemId: found.id,
+          name: found.name,
+          quantity: qty,
+          unitPriceArs: found.unitPriceArs,
+        },
+      ];
+    };
+
+    if (section === 'cajon') {
+      setDrawerHardware(updater);
+      setSelectedDrawerInvHwId('');
+      setSelectedDrawerInvHwQty('1');
+      onShowToast(`Herraje cargado al cajón: ${found.name} (×${qty})`);
+    } else {
+      setMesaHardware(updater);
+      setSelectedMesaInvHwId('');
+      setSelectedMesaInvHwQty('1');
+      onShowToast(`Herraje cargado a la mesita: ${found.name} (×${qty})`);
+    }
+  };
+
   const openAddHwModal = (section: 'mesa' | 'cajon') => {
     setHwModalSection(section);
     setEditingHwId(null);
@@ -645,6 +811,14 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
 
     setHwModalSection(null);
     setEditingHwId(null);
+  };
+
+  const handleRestoreDefaults = () => {
+    setMesaPieces(DEFAULT_PRESUPUESTO_MESA_PIECES.map((p) => ({ ...p })));
+    setDrawerPieces(DEFAULT_PRESUPUESTO_DRAWER_PIECES.map((p) => ({ ...p })));
+    onShowToast(
+      'Cortes por defecto restaurados (Techo, Piso, Laterales, Frente, Cajones, Techo secador, Mesita grande)'
+    );
   };
 
   const handleClearAllPresupuesto = () => {
@@ -707,9 +881,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
 
   return (
     <div className="space-y-3 pb-4">
-      {/* HEADER: Back Arrow + Title + Clear All */}
-      <div className="flex items-center justify-between pt-0.5">
-        <div className="flex items-center gap-2.5">
+      {/* HEADER: Back Arrow + Title + Restore Defaults / Clear All */}
+      <div className="flex items-center justify-between pt-0.5 gap-1.5 flex-wrap">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onBack}
@@ -718,36 +892,35 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
           >
             <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
           </button>
-          <h1 className="text-xl font-extrabold font-display text-white tracking-tight">
-            Nuevo Presupuesto
+          <h1 className="text-lg font-extrabold font-display text-white tracking-tight">
+            Presupuesto (en mm)
           </h1>
         </div>
 
         <div className="flex items-center gap-1.5">
-          {onSendPiecesToGuillotine && totalDefinedPieces > 0 && (
-            <button
-              type="button"
-              onClick={handleSendAllToGuillotine}
-              className="text-[10px] font-bold text-[#ffb59b] hover:text-white px-2.5 py-1.5 rounded-xl bg-[#261c18] border border-[#e87a50]/40 cursor-pointer transition-colors"
-            >
-              Enviar a Sierra 2D
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleRestoreDefaults}
+            className="text-[10px] font-bold text-[#ffb59b] hover:text-white px-2 py-1.5 rounded-xl bg-[#261c18] border border-[#e87a50]/40 cursor-pointer transition-colors"
+            title="Cargar los 7 cortes por defecto"
+          >
+            Cortes por defecto
+          </button>
           <button
             type="button"
             onClick={handleClearAllPresupuesto}
-            className="text-[10px] font-bold text-[#ffb59b] hover:text-white px-2.5 py-1.5 rounded-xl bg-[#1a1c1c] border border-white/10 flex items-center gap-1 cursor-pointer transition-colors"
+            className="text-[10px] font-bold text-[#ffb59b] hover:text-white px-2 py-1.5 rounded-xl bg-[#1a1c1c] border border-white/10 flex items-center gap-1 cursor-pointer transition-colors"
             title="Vaciar todos los cortes y herrajes"
           >
             <RotateCcw className="w-3 h-3" />
-            <span>Vaciar Todo</span>
+            <span>Vaciar</span>
           </button>
         </div>
       </div>
 
-      {/* TOP COMPACT ROW: Vista Compacta de la Mesita (apenas más grande que el cubo) + Configuración de Valor de Placa y Filo */}
+      {/* TOP COMPACT ROW: Vista Compacta de la Mesita + Configuración de Valor de Placa y Filo */}
       <div className="flex items-start gap-2.5">
-        {/* TARJETA COMPACTA DEL CUBO (Apenas más grande que el diseño de la mesita) */}
+        {/* TARJETA COMPACTA DEL CUBO */}
         <div className="w-[126px] shrink-0 bg-[#161818] rounded-2xl border border-[#e87a50]/35 p-2 flex flex-col items-center justify-center shadow-md">
           <svg
             viewBox="14 16 190 210"
@@ -939,7 +1112,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                 </option>
                 {boards.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.name} ({b.widthMm}×{b.heightMm}mm) —{' '}
+                    {b.name} ({formatMm(b.widthMm)}×{formatMm(b.heightMm)}mm) —{' '}
                     {formatARS(b.costArs)}
                   </option>
                 ))}
@@ -996,7 +1169,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                 value={boardWidthMm || ''}
                 onChange={(e) =>
                   setBoardWidthMm(
-                    Math.max(100, parseInt(e.target.value, 10) || 2750)
+                    Math.max(100, parseMm(e.target.value, 2750))
                   )
                 }
                 className="w-full h-7 bg-[#222424] border border-white/15 rounded-lg px-2 text-[11px] font-semibold text-white tabular-nums"
@@ -1012,7 +1185,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                 value={boardHeightMm || ''}
                 onChange={(e) =>
                   setBoardHeightMm(
-                    Math.max(100, parseInt(e.target.value, 10) || 1830)
+                    Math.max(100, parseMm(e.target.value, 1830))
                   )
                 }
                 className="w-full h-7 bg-[#222424] border border-white/15 rounded-lg px-2 text-[11px] font-semibold text-white tabular-nums"
@@ -1031,7 +1204,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
             <Puzzle className="w-4 h-4 text-[#e87a50] shrink-0" />
             <div>
               <h2 className="text-sm font-extrabold font-display text-white leading-tight">
-                1. Cortes de la Mesita (Estructura)
+                1. Cortes de la Mesita (En milímetros)
               </h2>
               <p className="text-[10px] text-[#c8c6c5]">
                 Subtotal Placa: {formatARS(costoPlacasMesita)} • Filo:{' '}
@@ -1057,7 +1230,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
         {mesaPieces.length === 0 ? (
           <div className="text-center py-3 px-2 rounded-xl bg-black/20 border border-dashed border-white/10 text-[11px] text-[#c8c6c5]">
             Sin cortes cargados en la estructura de la mesita. Agregá tus piezas
-            debajo (Largo × Profundidad).
+            debajo (Largo × Profundidad en mm) o tocá &quot;Cortes por defecto&quot;.
           </div>
         ) : (
           <div className="space-y-2">
@@ -1087,8 +1260,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                         {piece.name}
                       </div>
                       <div className="text-[10px] text-[#c8c6c5] tabular-nums">
-                        Largo {piece.lengthMm} × Prof. {piece.widthMm} ×{' '}
-                        {piece.thicknessMm} mm
+                        Largo {formatMm(piece.lengthMm)} × Prof.{' '}
+                        {formatMm(piece.widthMm)} × {formatMm(piece.thicknessMm)}{' '}
+                        mm
                       </div>
                       <div className="text-[10px] text-[#ffb59b] font-semibold tabular-nums mt-0.5">
                         Filo: {edgeInfo} → {edgeM.toFixed(2)} m (
@@ -1108,11 +1282,11 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                     </div>
                   </div>
 
-                  {/* Selector rápido de cuántos lados llevan filo (0, 1, 2, 3 o 4 lados) */}
+                  {/* Selector rápido por pieza de cuántos lados llevan filo (0, 1, 2, 3 o 4 lados) */}
                   <div className="bg-black/25 rounded-lg p-1.5 border border-white/5 space-y-1">
                     <div className="flex items-center justify-between text-[9px] text-[#c8c6c5] px-0.5">
                       <span className="font-bold uppercase tracking-wider">
-                        Elegir cuántos lados llevan filo:
+                        Elegir lados con filo en {piece.name}:
                       </span>
                       <span className="font-bold text-[#ffb59b] tabular-nums">
                         {edgeM.toFixed(2)} m ({formatARS(pieceEdgeCost)})
@@ -1219,7 +1393,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
         {/* Formulario Rápido para Agregar Corte de la Mesita */}
         <div className="bg-black/20 rounded-xl p-2.5 border border-dashed border-[#e87a50]/50 space-y-2">
           <div className="text-[10px] font-bold text-[#ffb59b] uppercase">
-            + Agregar Corte a la Mesita (Largo × Profundidad)
+            + Agregar Corte a la Mesita (Largo × Profundidad en mm)
           </div>
           <div className="grid grid-cols-12 gap-1.5">
             <input
@@ -1245,7 +1419,8 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
 
           <div className="grid grid-cols-12 gap-1.5 items-center">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="Largo mm"
               value={mesaCutL}
               onChange={(e) => setMesaCutL(e.target.value)}
@@ -1253,7 +1428,8 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
               className="col-span-3 h-8 bg-[#222424] border border-white/15 rounded-lg px-1.5 text-[11px] text-center font-semibold text-white tabular-nums"
             />
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="Prof. mm"
               value={mesaCutW}
               onChange={(e) => setMesaCutW(e.target.value)}
@@ -1261,7 +1437,8 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
               className="col-span-3 h-8 bg-[#222424] border border-white/15 rounded-lg px-1.5 text-[11px] text-center font-semibold text-white tabular-nums"
             />
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="Esp."
               value={mesaCutT}
               onChange={(e) => setMesaCutT(e.target.value)}
@@ -1310,6 +1487,42 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
               </button>
             )}
           </div>
+
+          {/* Selector directo de Inventario para Mesita */}
+          {selectableInventoryHardware.length > 0 && (
+            <div className="grid grid-cols-12 gap-1.5 items-center bg-black/20 p-2 rounded-xl border border-white/10">
+              <select
+                value={selectedMesaInvHwId}
+                onChange={(e) => setSelectedMesaInvHwId(e.target.value)}
+                className="col-span-7 h-8 bg-[#222424] border border-white/15 rounded-lg px-2 text-[11px] text-white cursor-pointer"
+              >
+                <option value="">
+                  -- Elegir herraje de tu Inventario --
+                </option>
+                {selectableInventoryHardware.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({formatARS(h.unitPriceArs)})
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="1"
+                value={selectedMesaInvHwQty}
+                onChange={(e) => setSelectedMesaInvHwQty(e.target.value)}
+                className="col-span-2 h-8 bg-[#222424] border border-white/15 rounded-lg px-1 text-xs font-bold text-center text-white tabular-nums"
+              />
+              <button
+                type="button"
+                onClick={() => handleAddInventoryHardwareToSection('mesa')}
+                disabled={!selectedMesaInvHwId}
+                className="col-span-3 h-8 rounded-lg bg-[#e87a50] disabled:opacity-40 text-[#121414] text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Cargar</span>
+              </button>
+            </div>
+          )}
 
           {mesaHardware.length === 0 ? (
             <div className="text-center py-2 px-2 rounded-xl bg-black/20 border border-dashed border-white/10 text-[11px] text-[#c8c6c5]">
@@ -1363,10 +1576,10 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
           <button
             type="button"
             onClick={() => openAddHwModal('mesa')}
-            className="w-full py-1.5 px-3 rounded-xl bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+            className="w-full py-1.5 px-3 rounded-xl bg-[#222424] hover:bg-[#2c2e2e] border border-white/15 text-[#ffb59b] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5 stroke-[2.8]" />
-            <span>Agregar herraje de mesita</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Agregar herraje manual a la mesita</span>
           </button>
         </div>
       </div>
@@ -1420,7 +1633,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
         {/* Lista de Cortes de los Cajones */}
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-white">
-            Cortes para Cajones
+            Cortes para Cajones (en mm)
           </span>
           {drawerPieces.length > 0 && (
             <button
@@ -1439,7 +1652,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
         {drawerPieces.length === 0 ? (
           <div className="text-center py-3 px-2 rounded-xl bg-black/20 border border-dashed border-white/10 text-[11px] text-[#c8c6c5]">
             Sin cortes cargados para los cajones. Agregá frentes, laterales,
-            contrafrentes o fondos debajo (Largo × Profundidad).
+            contrafrentes o fondos debajo (Largo × Profundidad en mm).
           </div>
         ) : (
           <div className="space-y-2">
@@ -1470,8 +1683,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                         {piece.name}
                       </div>
                       <div className="text-[10px] text-[#c8c6c5] tabular-nums">
-                        Largo {piece.lengthMm} × Prof. {piece.widthMm} ×{' '}
-                        {piece.thicknessMm} mm
+                        Largo {formatMm(piece.lengthMm)} × Prof.{' '}
+                        {formatMm(piece.widthMm)} × {formatMm(piece.thicknessMm)}{' '}
+                        mm
                       </div>
                       <div className="text-[10px] text-[#ffb59b] font-semibold tabular-nums mt-0.5">
                         Filo: {edgeInfo} → {edgeM.toFixed(2)} m (
@@ -1494,7 +1708,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                   <div className="bg-black/25 rounded-lg p-1.5 border border-white/5 space-y-1">
                     <div className="flex items-center justify-between text-[9px] text-[#c8c6c5] px-0.5">
                       <span className="font-bold uppercase tracking-wider">
-                        Elegir cuántos lados llevan filo:
+                        Elegir lados con filo en {piece.name}:
                       </span>
                       <span className="font-bold text-[#ffb59b] tabular-nums">
                         {edgeM.toFixed(2)} m ({formatARS(pieceEdgeCost)})
@@ -1601,12 +1815,12 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
         {/* Formulario Rápido para Agregar Corte de Cajón */}
         <div className="bg-black/20 rounded-xl p-2.5 border border-dashed border-[#e87a50]/50 space-y-2">
           <div className="text-[10px] font-bold text-[#ffb59b] uppercase">
-            + Agregar Corte para Cajón (Largo × Profundidad)
+            + Agregar Corte para Cajón (Largo × Profundidad en mm)
           </div>
           <div className="grid grid-cols-12 gap-1.5">
             <input
               type="text"
-              placeholder="Nombre (ej. Frente cajón, Lateral cajón)"
+              placeholder="Nombre (ej. Frente, Cajones)"
               value={drwCutName}
               onChange={(e) => setDrwCutName(e.target.value)}
               className="col-span-6 h-8 bg-[#222424] border border-white/15 rounded-lg px-2 text-[11px] text-white"
@@ -1627,23 +1841,26 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
 
           <div className="grid grid-cols-12 gap-1.5 items-center">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="Largo mm"
               value={drwCutL}
               onChange={(e) => setDrwCutL(e.target.value)}
-              title="Largo en mm"
+              title="Largo en mm (ej. 301,5)"
               className="col-span-3 h-8 bg-[#222424] border border-white/15 rounded-lg px-1.5 text-[11px] text-center font-semibold text-white tabular-nums"
             />
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="Prof. mm"
               value={drwCutW}
               onChange={(e) => setDrwCutW(e.target.value)}
-              title="Profundidad en mm"
+              title="Profundidad en mm (ej. 83)"
               className="col-span-3 h-8 bg-[#222424] border border-white/15 rounded-lg px-1.5 text-[11px] text-center font-semibold text-white tabular-nums"
             />
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="Esp."
               value={drwCutT}
               onChange={(e) => setDrwCutT(e.target.value)}
@@ -1668,7 +1885,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
           </div>
         </div>
 
-        {/* Sub-sección: Herrajes para los Cajones */}
+        {/* Sub-sección: Elegir qué Herrajes cargarle a los Cajones desde el Inventario */}
         <div className="pt-2 border-t border-white/10 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
@@ -1688,6 +1905,55 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
               >
                 Quitar todos
               </button>
+            )}
+          </div>
+
+          {/* Selector directo basado en los herrajes cargados en el Inventario */}
+          <div className="bg-black/25 p-2.5 rounded-xl border border-[#e87a50]/40 space-y-1.5">
+            <label className="block text-[10px] font-bold text-[#ffb59b]">
+              Elegir qué herraje cargarle a los cajones desde tu Inventario:
+            </label>
+            {selectableInventoryHardware.length === 0 ? (
+              <div className="text-[10px] text-[#c8c6c5]">
+                No tenés herrajes cargados en la pestaña Inventario todavía.
+                Podés cargarlos en Inventario o agregar uno manual con el botón
+                de abajo.
+              </div>
+            ) : (
+              <div className="grid grid-cols-12 gap-1.5 items-center">
+                <select
+                  value={selectedDrawerInvHwId}
+                  onChange={(e) => setSelectedDrawerInvHwId(e.target.value)}
+                  className="col-span-7 h-8 bg-[#222424] border border-white/15 rounded-lg px-2 text-[11px] text-white cursor-pointer"
+                >
+                  <option value="">
+                    -- Seleccionar herraje del Inventario --
+                  </option>
+                  {selectableInventoryHardware.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name} ({formatARS(h.unitPriceArs)} • Stock:{' '}
+                      {h.stockQty})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedDrawerInvHwQty}
+                  onChange={(e) => setSelectedDrawerInvHwQty(e.target.value)}
+                  title="Cantidad por cajón"
+                  className="col-span-2 h-8 bg-[#222424] border border-white/15 rounded-lg px-1 text-xs font-bold text-center text-white tabular-nums"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddInventoryHardwareToSection('cajon')}
+                  disabled={!selectedDrawerInvHwId}
+                  className="col-span-3 h-8 rounded-lg bg-[#e87a50] hover:bg-[#f0855c] disabled:opacity-40 text-[#121414] text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Cargar</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -1748,16 +2014,16 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
           <button
             type="button"
             onClick={() => openAddHwModal('cajon')}
-            className="w-full py-1.5 px-3 rounded-xl bg-[#e87a50] hover:bg-[#f0855c] text-[#121414] text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+            className="w-full py-1.5 px-3 rounded-xl bg-[#222424] hover:bg-[#2c2e2e] border border-white/15 text-[#ffb59b] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5 stroke-[2.8]" />
-            <span>Agregar herraje para cajones</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Agregar otro herraje para cajones</span>
           </button>
         </div>
       </div>
 
       {/* =====================================================================
-          4. RESUMEN DE COSTOS (Con Cálculo de Filos en lugar de Mano de Obra)
+          4. RESUMEN DE COSTOS (Con Cálculo de Filos)
           ===================================================================== */}
       <div className="bg-[#161818] rounded-2xl border border-[#e87a50]/45 p-3.5 shadow-lg">
         <div className="grid grid-cols-2 divide-x divide-white/10">
@@ -1824,7 +2090,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
           type="button"
           onClick={() =>
             onShowToast(
-              `Borrador guardado (${totalDefinedPieces} cortes • Total ${formatARS(
+              `Presupuesto guardado (${totalDefinedPieces} cortes • Total ${formatARS(
                 totalPresupuesto
               )})`
             )
@@ -1845,13 +2111,13 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
         </button>
       </div>
 
-      {/* MODAL: EDITAR CORTE (MESITA O CAJÓN) */}
+      {/* MODAL: EDITAR CORTE (MESITA O CAJÓN) EN MILÍMETROS */}
       {editingCutTarget && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="atelier-card rounded-2xl max-w-sm w-full p-5 space-y-4 border border-white/15">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold font-display text-white">
-                Editar Corte (
+                Editar Corte en mm (
                 {editingCutTarget.section === 'mesa' ? 'Mesita' : 'Cajón'})
               </h3>
               <button
@@ -1883,9 +2149,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                     Largo (mm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="10"
                     value={editCutL}
                     onChange={(e) => setEditCutL(e.target.value)}
                     className="w-full bg-[#222424] border border-white/15 rounded-xl px-2.5 py-2 text-xs text-white tabular-nums"
@@ -1896,9 +2162,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                     Profundidad (mm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="10"
                     value={editCutW}
                     onChange={(e) => setEditCutW(e.target.value)}
                     className="w-full bg-[#222424] border border-white/15 rounded-xl px-2.5 py-2 text-xs text-white tabular-nums"
@@ -1909,9 +2175,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                     Espesor (mm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="3"
                     value={editCutT}
                     onChange={(e) => setEditCutT(e.target.value)}
                     className="w-full bg-[#222424] border border-white/15 rounded-xl px-2.5 py-2 text-xs text-white tabular-nums"
@@ -2017,16 +2283,15 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
               </button>
             </div>
 
-            {inventoryItems.filter((i) => i.category === 'herraje').length >
-              0 && (
+            {selectableInventoryHardware.length > 0 && (
               <div>
                 <label className="block text-[11px] font-bold text-[#ffb59b] uppercase tracking-wider mb-1">
-                  Elegir desde Inventario (Opcional)
+                  Elegir desde tu Inventario
                 </label>
                 <select
                   defaultValue=""
                   onChange={(e) => {
-                    const found = inventoryItems.find(
+                    const found = selectableInventoryHardware.find(
                       (it) => it.id === e.target.value
                     );
                     if (found) {
@@ -2037,15 +2302,14 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                   className="w-full bg-[#222424] border border-white/15 rounded-xl px-3 py-2 text-xs text-white cursor-pointer"
                 >
                   <option value="" disabled>
-                    -- Seleccionar herraje cargado --
+                    -- Seleccionar herraje cargado en Inventario --
                   </option>
-                  {inventoryItems
-                    .filter((i) => i.category === 'herraje')
-                    .map((it) => (
-                      <option key={it.id} value={it.id}>
-                        {it.name} ({formatARS(it.unitPriceArs)})
-                      </option>
-                    ))}
+                  {selectableInventoryHardware.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.name} ({formatARS(it.unitPriceArs)} • Stock:{' '}
+                      {it.stockQty})
+                    </option>
+                  ))}
                 </select>
               </div>
             )}
@@ -2129,7 +2393,7 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                   MUEBLES J&amp;L • ATELIER DE CARPINTERÍA
                 </div>
                 <h3 className="text-base font-extrabold font-display text-white">
-                  Presupuesto Técnico Detallado
+                  Presupuesto Técnico Detallado (mm)
                 </h3>
               </div>
               <button
@@ -2157,9 +2421,9 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                       className="flex items-center justify-between text-[#e3e2e2] tabular-nums"
                     >
                       <span>
-                        • {p.name}: {p.lengthMm}×{p.widthMm}×{p.thicknessMm}mm
-                        (×{p.quantity} • {getEdgeSidesCount(p.edgeCode)} lados
-                        filo)
+                        • {p.name}: {formatMm(p.lengthMm)}×{formatMm(p.widthMm)}×
+                        {formatMm(p.thicknessMm)}mm (×{p.quantity} •{' '}
+                        {getEdgeSidesCount(p.edgeCode)} lados filo)
                       </span>
                       <span className="font-semibold text-[#c8c6c5]">
                         {formatARS(getPieceUnitBoardCost(p) * p.quantity)}
@@ -2196,9 +2460,10 @@ export const ScreenPresupuesto: React.FC<ScreenPresupuestoProps> = ({
                         className="flex items-center justify-between text-[#e3e2e2] tabular-nums"
                       >
                         <span>
-                          • {p.name}: {p.lengthMm}×{p.widthMm}×{p.thicknessMm}mm
-                          (×{p.quantity * mult} •{' '}
-                          {getEdgeSidesCount(p.edgeCode)} lados filo)
+                          • {p.name}: {formatMm(p.lengthMm)}×
+                          {formatMm(p.widthMm)}×{formatMm(p.thicknessMm)}mm (×
+                          {p.quantity * mult} • {getEdgeSidesCount(p.edgeCode)}{' '}
+                          lados filo)
                         </span>
                         <span className="font-semibold text-[#c8c6c5]">
                           {formatARS(

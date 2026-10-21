@@ -300,19 +300,50 @@ export default function App() {
     } catch {}
   }, [isSeniorMode]);
 
-  // State: Guillotina 2D (Melamina 18mm) — Empty by default
+  // Unique client session ID & local timestamp to prevent cloud echoes from resetting local edits
+  const clientSessionIdRef = React.useRef<string>(
+    `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  );
+  const hasUserModifiedStateRef = React.useRef<boolean>(false);
+
+  // One-time seed of the 7 default workshop cuts if not yet seeded in v4
+  useEffect(() => {
+    try {
+      const seeded = localStorage.getItem('mjl_v4_defaults_seeded');
+      if (seeded !== 'true') {
+        localStorage.setItem('mjl_v3_cut_pieces', JSON.stringify(INITIAL_CUT_PIECES));
+        localStorage.setItem(
+          'mjl_v3_predefined_cuts',
+          JSON.stringify(INITIAL_PREDEFINED_CUTS)
+        );
+        localStorage.setItem('mjl_v4_defaults_seeded', 'true');
+        localStorage.setItem('mjl_v4_updated_at_ms', String(Date.now()));
+        setCutPieces(INITIAL_CUT_PIECES);
+        setPredefinedCuts(INITIAL_PREDEFINED_CUTS);
+      }
+    } catch {}
+  }, []);
+
+  // State: Guillotina 2D (Melamina 18mm) — Default 7 cuts loaded
   const [boards, setBoards] = useState<MelaminaBoard[]>(() =>
     getStored('mjl_v3_boards', INITIAL_BOARDS)
   );
   const [selectedBoardId, setSelectedBoardId] = useState<string>(() =>
     getStored('mjl_v3_selected_board_id', '')
   );
-  const [cutPieces, setCutPieces] = useState<CutPiece[]>(() =>
-    getStored('mjl_v3_cut_pieces', INITIAL_CUT_PIECES)
-  );
-  const [predefinedCuts, setPredefinedCuts] = useState<PredefinedCut[]>(() =>
-    getStored('mjl_v3_predefined_cuts', INITIAL_PREDEFINED_CUTS)
-  );
+  const [cutPieces, setCutPieces] = useState<CutPiece[]>(() => {
+    const stored = getStored<CutPiece[]>('mjl_v3_cut_pieces', INITIAL_CUT_PIECES);
+    return Array.isArray(stored) && stored.length > 0 ? stored : INITIAL_CUT_PIECES;
+  });
+  const [predefinedCuts, setPredefinedCuts] = useState<PredefinedCut[]>(() => {
+    const stored = getStored<PredefinedCut[]>(
+      'mjl_v3_predefined_cuts',
+      INITIAL_PREDEFINED_CUTS
+    );
+    return Array.isArray(stored) && stored.length > 0
+      ? stored
+      : INITIAL_PREDEFINED_CUTS;
+  });
 
   // State: Cortes Fondo (Placas de Fondo 3mm / 5.5mm) — Empty by default
   const [fondoBoards, setFondoBoards] = useState<MelaminaBoard[]>(() =>
@@ -390,10 +421,21 @@ export default function App() {
   );
   const [activeDesignIndex, setActiveDesignIndex] = useState<number>(0);
 
+  const isFirstRenderRef = React.useRef<boolean>(true);
+  const touchLocalTimestamp = () => {
+    if (!isFirstRenderRef.current && !isApplyingRemoteRef.current) {
+      hasUserModifiedStateRef.current = true;
+      try {
+        localStorage.setItem('mjl_v4_updated_at_ms', String(Date.now()));
+      } catch {}
+    }
+  };
+
   // Automatic localStorage sync
   useEffect(() => {
     try {
       localStorage.setItem('mjl_v3_cut_pieces', JSON.stringify(cutPieces));
+      touchLocalTimestamp();
     } catch {}
   }, [cutPieces]);
 
@@ -403,12 +445,14 @@ export default function App() {
         'mjl_v3_predefined_cuts',
         JSON.stringify(predefinedCuts)
       );
+      touchLocalTimestamp();
     } catch {}
   }, [predefinedCuts]);
 
   useEffect(() => {
     try {
       localStorage.setItem('mjl_v3_boards', JSON.stringify(boards));
+      touchLocalTimestamp();
     } catch {}
   }, [boards]);
 
@@ -422,6 +466,7 @@ export default function App() {
     try {
       localStorage.setItem('mjl_v3_fondo_cut_pieces', JSON.stringify(fondoCutPieces));
       localStorage.setItem('mjl_v3_fondo_boards', JSON.stringify(fondoBoards));
+      touchLocalTimestamp();
     } catch {}
   }, [fondoCutPieces, fondoBoards]);
 
@@ -429,18 +474,21 @@ export default function App() {
     try {
       localStorage.setItem('mjl_v3_edge_rolls', JSON.stringify(edgeRolls));
       localStorage.setItem('mjl_v3_edge_pieces', JSON.stringify(edgePieces));
+      touchLocalTimestamp();
     } catch {}
   }, [edgeRolls, edgePieces]);
 
   useEffect(() => {
     try {
       localStorage.setItem('mjl_v3_inventory_items', JSON.stringify(inventoryItems));
+      touchLocalTimestamp();
     } catch {}
   }, [inventoryItems]);
 
   useEffect(() => {
     try {
       localStorage.setItem('mjl_v3_orders', JSON.stringify(orders));
+      touchLocalTimestamp();
     } catch {}
   }, [orders]);
 
@@ -456,6 +504,7 @@ export default function App() {
       localStorage.setItem('mjl_v3_sales_goal_units', JSON.stringify(salesGoalUnits));
       localStorage.setItem('mjl_v3_extra_sold_units', JSON.stringify(extraSoldUnits));
       localStorage.setItem('mjl_v3_freight_rate_km', JSON.stringify(freightRatePerKm));
+      touchLocalTimestamp();
     } catch {}
   }, [
     cashEfectivo,
@@ -473,8 +522,13 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('mjl_v3_designs', JSON.stringify(designs));
+      touchLocalTimestamp();
     } catch {}
   }, [designs]);
+
+  useEffect(() => {
+    isFirstRenderRef.current = false;
+  }, []);
 
   // Real-Time Multi-Device Sync with Firebase (onSnapshot) + Offline LocalStorage Fallback
   useEffect(() => {
@@ -485,10 +539,23 @@ export default function App() {
 
     const unsubscribe = subscribeToWorkshopState(
       (cloudData) => {
-        // Only apply remote state if it has the clean v3 schema flag (preventing old pre-populated demo data from overwriting empty defaults)
-        if (!cloudData || cloudData.schemaVersion !== 'v3_clean') {
+        // Only apply remote state if it has the v4_persistent schema flag and comes from a DIFFERENT session
+        if (!cloudData || cloudData.schemaVersion !== 'v4_persistent') {
           return;
         }
+        // Ignore echoes from our own browser tab session so rapid edits are never rolled back
+        if (cloudData.clientSessionId === clientSessionIdRef.current) {
+          return;
+        }
+        // Never overwrite newer local data with older cloud data
+        const localUpdatedAt = Number(
+          localStorage.getItem('mjl_v4_updated_at_ms') || '0'
+        );
+        const remoteUpdatedAt = Number(cloudData.clientUpdatedAtMs || 0);
+        if (localUpdatedAt > 0 && remoteUpdatedAt < localUpdatedAt) {
+          return;
+        }
+
         isApplyingRemoteRef.current = true;
         if (cloudData.boards && Array.isArray(cloudData.boards)) {
           setBoards(cloudData.boards);
@@ -563,12 +630,18 @@ export default function App() {
     };
   }, []);
 
-  // Sync state to Firebase Firestore on critical updates (debounced)
+  // Sync state to Firebase Firestore on user updates (debounced)
   useEffect(() => {
-    if (isApplyingRemoteRef.current) return;
+    if (isApplyingRemoteRef.current || !hasUserModifiedStateRef.current) return;
+    const nowMs = Date.now();
+    try {
+      localStorage.setItem('mjl_v4_updated_at_ms', String(nowMs));
+    } catch {}
     const timer = setTimeout(() => {
       saveDocToCloud('workshop_state', 'current', {
-        schemaVersion: 'v3_clean',
+        schemaVersion: 'v4_persistent',
+        clientSessionId: clientSessionIdRef.current,
+        clientUpdatedAtMs: nowMs,
         boards,
         fondoBoards,
         fondoCutPieces,
@@ -591,7 +664,7 @@ export default function App() {
       }).then((ok) => {
         if (ok && navigator.onLine) setIsCloudOnline(true);
       });
-    }, 1200);
+    }, 800);
     return () => clearTimeout(timer);
   }, [
     boards,

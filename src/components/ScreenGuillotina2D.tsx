@@ -26,7 +26,8 @@ import {
   X,
 } from 'lucide-react';
 import { MelaminaBoard, CutPiece, PredefinedCut } from '../types/atelier';
-import { formatARS } from '../data/initialData';
+import { formatARS, formatMm, parseMm } from '../data/initialData';
+import { calcStructureCutsEdgeMeters } from '../utils/drawerEngine';
 import {
   calculate2DGuillotineNesting,
   PlacedPiece,
@@ -347,12 +348,12 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     setEditingPieceId(null);
     setCutName('');
     setCutSub('Módulo Taller J&L');
-    setCutW('600');
-    setCutH('400');
+    setCutW('400');
+    setCutH('335');
     setCutQty('1');
-    const defaultPrice = calcExactCutUnitPrice(600, 400);
+    const defaultPrice = calcExactCutUnitPrice(400, 335);
     setCutCustomPrice(String(defaultPrice));
-    setCutEdges('0L');
+    setCutEdges('2L');
     setCutAllowRotation(true);
     setSaveAlsoAsPreset(false);
     setShowCutModal(true);
@@ -362,8 +363,8 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     setEditingPieceId(p.id);
     setCutName(p.name);
     setCutSub(p.subtitle);
-    setCutW(String(p.widthMm));
-    setCutH(String(p.heightMm));
+    setCutW(formatMm(p.widthMm));
+    setCutH(formatMm(p.heightMm));
     setCutQty(String(p.quantity));
     const calcPrice = calcExactCutUnitPrice(p.widthMm, p.heightMm);
     setCutCustomPrice(String(calcPrice));
@@ -392,7 +393,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
       heightMm: preset.heightMm,
       quantity: qty,
       unitPriceArs: price,
-      edgesLabel: 'Sin Tapacantos',
+      edgesLabel: preset.edgesLabel || '2 Lados con filo',
       edgesType: preset.edgesType,
       allowRotation: preset.allowRotation,
       mandatoryGrain: !preset.allowRotation,
@@ -406,8 +407,8 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   const openNewPresetModal = () => {
     setEditingPreset(null);
     setPresetName('');
-    setPresetW('600');
-    setPresetH('400');
+    setPresetW('400');
+    setPresetH('335');
     setPresetEdges('2L');
     setPresetAllowRot(true);
     setShowPresetEditModal(true);
@@ -416,8 +417,8 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   const openEditPresetModal = (pre: PredefinedCut) => {
     setEditingPreset(pre);
     setPresetName(pre.name);
-    setPresetW(String(pre.widthMm));
-    setPresetH(String(pre.heightMm));
+    setPresetW(formatMm(pre.widthMm));
+    setPresetH(formatMm(pre.heightMm));
     setPresetEdges(pre.edgesType);
     setPresetAllowRot(pre.allowRotation);
     setShowPresetEditModal(true);
@@ -425,8 +426,8 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
 
   const handleSavePresetForm = (e: React.FormEvent) => {
     e.preventDefault();
-    const w = Math.max(50, Math.min(2750, parseInt(presetW, 10) || 600));
-    const h = Math.max(50, Math.min(1830, parseInt(presetH, 10) || 400));
+    const w = Math.max(20, Math.min(2750, parseMm(presetW, 400)));
+    const h = Math.max(20, Math.min(1830, parseMm(presetH, 335)));
     const edgesLabelMap = {
       '4L': '4 Lados con filo',
       '3L': '3 Lados con filo',
@@ -463,8 +464,8 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
 
   const handleSaveCut = (e: React.FormEvent) => {
     e.preventDefault();
-    const w = Math.max(50, Math.min(2750, parseInt(cutW, 10) || 600));
-    const h = Math.max(50, Math.min(1830, parseInt(cutH, 10) || 400));
+    const w = Math.max(20, Math.min(2750, parseMm(cutW, 400)));
+    const h = Math.max(20, Math.min(1830, parseMm(cutH, 335)));
     const q = Math.max(1, Math.min(50, parseInt(cutQty, 10) || 1));
     const price = calcExactCutUnitPrice(w, h);
 
@@ -492,7 +493,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
         });
       }
       onShowToast(
-        `Corte actualizado (${w} × ${h} mm • ${q} uds • ${formatARS(price * q)})`
+        `Corte actualizado (${formatMm(w)} × ${formatMm(h)} mm • ${q} uds • ${formatARS(price * q)})`
       );
     } else {
       onAddCutPiece({
@@ -508,7 +509,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
         mandatoryGrain: !cutAllowRotation,
       });
       onShowToast(
-        `Corte agregado (${w} × ${h} mm • ${q} uds • ${formatARS(price * q)})`
+        `Corte agregado (${formatMm(w)} × ${formatMm(h)} mm • ${q} uds • ${formatARS(price * q)})`
       );
 
       if (saveAlsoAsPreset && onAddPredefinedCut) {
@@ -1261,7 +1262,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                         <div className="bg-[#222424] rounded-xl px-3 py-2 flex items-center justify-between">
                           <span className="text-[#a1a1a1]">Medidas:</span>
                           <span className="font-bold text-white tabular-nums">
-                            {piece.widthMm} × {piece.heightMm} mm
+                            {formatMm(piece.widthMm)} × {formatMm(piece.heightMm)} mm
                           </span>
                         </div>
 
@@ -1281,6 +1282,46 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                               {formatARS(unitCutPriceArs)} c/u
                             </div>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Per-Piece Edge Banding (Lados con Filo) Selector */}
+                      <div className="bg-[#222424] rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#a1a1a1]">
+                          Lados con Filo ({calcStructureCutsEdgeMeters([piece]).toFixed(2)} m):
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {(['0L', '1L', '2L', '3L', '4L'] as const).map((ed) => {
+                            const active = (piece.edgesType || '0L') === ed;
+                            const edgesLabelMap = {
+                              '4L': '4 Lados con filo',
+                              '3L': '3 Lados con filo',
+                              '2L': '2 Lados con filo',
+                              '1L': '1 Lado con filo',
+                              '0L': 'Sin Tapacantos',
+                            };
+                            return (
+                              <button
+                                key={ed}
+                                type="button"
+                                onClick={() => {
+                                  if (onUpdatePieceDetails) {
+                                    onUpdatePieceDetails(piece.id, {
+                                      edgesType: ed,
+                                      edgesLabel: edgesLabelMap[ed],
+                                    });
+                                  }
+                                }}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                  active
+                                    ? 'bg-[#e87a50] text-[#121414]'
+                                    : 'bg-[#181a1a] text-[#a1a1a1] hover:text-white border border-white/10'
+                                }`}
+                              >
+                                {ed === '0L' ? '0' : ed.replace('L', '')}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
@@ -1394,7 +1435,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                         {pre.name}
                       </div>
                       <div className="text-[11px] text-[#ffb59b] font-semibold tabular-nums mt-0.5">
-                        {pre.widthMm} × {pre.heightMm} mm • Valor:{' '}
+                        {formatMm(pre.widthMm)} × {formatMm(pre.heightMm)} mm • {pre.edgesType} filo • Valor:{' '}
                         {formatARS(
                           Math.round(
                             ((pre.widthMm * pre.heightMm) / 1_000_000) *
@@ -1492,7 +1533,8 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     Largo (mm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
                     value={presetW}
                     onChange={(e) => setPresetW(e.target.value)}
@@ -1504,12 +1546,35 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     Profundidad (mm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
                     value={presetH}
                     onChange={(e) => setPresetH(e.target.value)}
                     className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs text-white tabular-nums"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Lados que llevan Filo (Tapacanto)
+                </label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {(['0L', '1L', '2L', '3L', '4L'] as const).map((ed) => (
+                    <button
+                      key={ed}
+                      type="button"
+                      onClick={() => setPresetEdges(ed)}
+                      className={`py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        presetEdges === ed
+                          ? 'bg-[#e87a50] text-[#121414]'
+                          : 'bg-[#222424] text-[#a1a1a1] hover:text-white border border-white/10'
+                      }`}
+                    >
+                      {ed === '0L' ? 'Sin' : `${ed.replace('L', '')} Lados`}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1520,8 +1585,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                 <span className="font-bold text-[#ffb59b] tabular-nums">
                   {formatARS(
                     Math.round(
-                      (((parseInt(presetW, 10) || 0) *
-                        (parseInt(presetH, 10) || 0)) /
+                      ((parseMm(presetW, 0) * parseMm(presetH, 0)) /
                         1_000_000) *
                         costPerM2 *
                         1.15
@@ -1592,8 +1656,8 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     const preset = predefinedCuts.find((p) => p.id === e.target.value);
                     if (preset) {
                       setCutName(preset.name);
-                      setCutW(String(preset.widthMm));
-                      setCutH(String(preset.heightMm));
+                      setCutW(formatMm(preset.widthMm));
+                      setCutH(formatMm(preset.heightMm));
                       setCutCustomPrice(
                         String(
                           Math.round(
@@ -1614,7 +1678,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                   </option>
                   {predefinedCuts.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.widthMm}×{p.heightMm} mm •{' '}
+                      {p.name} ({formatMm(p.widthMm)}×{formatMm(p.heightMm)} mm •{' '}
                       {formatARS(
                         Math.round(
                           ((p.widthMm * p.heightMm) / 1_000_000) *
@@ -1637,7 +1701,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Ej. Puerta Alacena Izquierda"
+                  placeholder="Ej. Techo, Piso, Laterales, Frente..."
                   value={cutName}
                   onChange={(e) => setCutName(e.target.value)}
                   className="w-full bg-[#222424] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#e87a50]"
@@ -1663,14 +1727,15 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     Largo (mm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
                     value={cutW}
                     onChange={(e) => {
                       const val = e.target.value;
                       setCutW(val);
-                      const wNum = parseInt(val, 10) || 0;
-                      const hNum = parseInt(cutH, 10) || 0;
+                      const wNum = parseMm(val, 0);
+                      const hNum = parseMm(cutH, 0);
                       setCutCustomPrice(
                         String(
                           Math.round(((wNum * hNum) / 1_000_000) * costPerM2 * 1.15)
@@ -1685,14 +1750,15 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     Profundidad (mm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
                     value={cutH}
                     onChange={(e) => {
                       const val = e.target.value;
                       setCutH(val);
-                      const wNum = parseInt(cutW, 10) || 0;
-                      const hNum = parseInt(val, 10) || 0;
+                      const wNum = parseMm(cutW, 0);
+                      const hNum = parseMm(val, 0);
                       setCutCustomPrice(
                         String(
                           Math.round(((wNum * hNum) / 1_000_000) * costPerM2 * 1.15)
@@ -1714,6 +1780,29 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                     onChange={(e) => setCutQty(e.target.value)}
                     className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs text-white tabular-nums focus:outline-none focus:border-[#e87a50]"
                   />
+                </div>
+              </div>
+
+              {/* Per-Cut Edge Banding Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Lados con Filo (Tapacanto)
+                </label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {(['0L', '1L', '2L', '3L', '4L'] as const).map((ed) => (
+                    <button
+                      key={ed}
+                      type="button"
+                      onClick={() => setCutEdges(ed)}
+                      className={`py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        cutEdges === ed
+                          ? 'bg-[#e87a50] text-[#121414]'
+                          : 'bg-[#222424] text-[#a1a1a1] hover:text-white border border-white/10'
+                      }`}
+                    >
+                      {ed === '0L' ? 'Sin Filo' : `${ed.replace('L', '')} Lados`}
+                    </button>
+                  ))}
                 </div>
               </div>
 

@@ -1,207 +1,207 @@
-import { DrawerSpec, BomMaterialItem, CutPiece } from '../types/atelier';
+import {
+  DrawerSpec,
+  BomMaterialItem,
+  CutPiece,
+  DesignCutPiece,
+} from '../types/atelier';
 
 export const BOARD_THICKNESS_MM = 18;
 export const BACK_PANEL_THICKNESS_MM = 3;
 export const SLIDE_CLEARANCE_PER_SIDE_MM = 12.7;
 export const DRAWER_GAP_MM = 3;
-export const DEFAULT_LEGS_HEIGHT_MM = 120;
 export const MIN_DRAWER_FRONT_HEIGHT_MM = 75;
 
 /**
- * Calculates linear edge banding meters for a rectangular piece given 0, 1, 2, 3, or 4 sides.
- * dim1Mm = Largo (mm), dim2Mm = Profundidad o Alto (mm)
+ * Calculates the internal available height inside a cabinet for drawers
  */
-export function calcPieceEdgeMetersBySides(
-  dim1Mm: number,
-  dim2Mm: number,
-  sidesCount: 0 | 1 | 2 | 3 | 4,
-  qty = 1
-): number {
-  const l = Math.max(0, Number(dim1Mm) || 0);
-  const d = Math.max(0, Number(dim2Mm) || 0);
-  const q = Math.max(1, Number(qty) || 1);
-  let mmPerUnit = 0;
-
-  switch (sidesCount) {
-    case 1:
-      mmPerUnit = l;
-      break;
-    case 2:
-      mmPerUnit = l * 2;
-      break;
-    case 3:
-      mmPerUnit = l * 2 + d;
-      break;
-    case 4:
-      mmPerUnit = l * 2 + d * 2;
-      break;
-    case 0:
-    default:
-      mmPerUnit = 0;
-      break;
-  }
-
-  return Number(((mmPerUnit * q) / 1000).toFixed(2));
+export function getInternalAvailableHeight(cabinetHeightMm: number): number {
+  const safeH = Number(cabinetHeightMm) || 550;
+  return Math.max(0, safeH - BOARD_THICKNESS_MM * 2);
 }
 
 /**
- * Calculates total linear edge banding meters for the 4 main cabinet structure pieces
- * (Tapa: Largo×Prof, Piso: Largo×Prof, 2 Laterales: Alto×Prof) according to chosen sides (0..4).
+ * Calculates how many drawers physically fit inside the given cabinet height
+ */
+export function getMaxDrawersAllowed(cabinetHeightMm: number): number {
+  const internalH = getInternalAvailableHeight(cabinetHeightMm);
+  if (internalH < MIN_DRAWER_FRONT_HEIGHT_MM) return 0;
+  const maxByHeight = Math.floor(
+    (internalH + DRAWER_GAP_MM) / (MIN_DRAWER_FRONT_HEIGHT_MM + DRAWER_GAP_MM)
+  );
+  return Math.min(6, Math.max(0, maxByHeight));
+}
+
+/**
+ * Calculates linear meters of edge banding (filo) for a rectangular piece
+ * given the number of sides with filo (0, 1, 2, 3, or 4 sides).
+ * - 0 sides: 0
+ * - 1 side: 1 Largo
+ * - 2 sides: 1 Largo + 1 Profundidad
+ * - 3 sides: 2 Largos + 1 Profundidad
+ * - 4 sides: 2 Largos + 2 Profundidades (full perimeter)
+ */
+export function calcPieceEdgeMetersBySides(
+  lengthMm: number,
+  depthMm: number,
+  sidesCount: 0 | 1 | 2 | 3 | 4,
+  qty = 1
+): number {
+  const l = Math.max(0, Number(lengthMm) || 0);
+  const p = Math.max(0, Number(depthMm) || 0);
+  const q = Math.max(0, Number(qty) || 1);
+  let mm = 0;
+  if (sidesCount === 1) {
+    mm = l;
+  } else if (sidesCount === 2) {
+    mm = l + p;
+  } else if (sidesCount === 3) {
+    mm = l * 2 + p;
+  } else if (sidesCount === 4) {
+    mm = (l + p) * 2;
+  }
+  return Number(((mm * q) / 1000).toFixed(2));
+}
+
+/**
+ * Calculates linear meters of edge banding for an array of individual structure cuts
+ * where each cut has its own `edgeSidesCount` (0, 1, 2, 3, or 4 sides).
+ */
+export function calcStructureCutsEdgeMeters(
+  cuts: DesignCutPiece[] = []
+): number {
+  if (!Array.isArray(cuts) || cuts.length === 0) return 0;
+  const total = cuts.reduce((sum, c) => {
+    const sides = (c.edgeSidesCount !== undefined ? c.edgeSidesCount : 2) as
+      | 0
+      | 1
+      | 2
+      | 3
+      | 4;
+    return (
+      sum +
+      calcPieceEdgeMetersBySides(
+        Number(c.lengthMm) || 0,
+        Number(c.depthMm) || 0,
+        sides,
+        Number(c.quantity) || 1
+      )
+    );
+  }, 0);
+  return Number(total.toFixed(2));
+}
+
+/**
+ * Legacy helper when structureCuts array is not provided
  */
 export function calcCabinetStructureEdgeMeters(
   widthMm: number,
   heightMm: number,
   depthMm: number,
-  sidesCount: 0 | 1 | 2 | 3 | 4
+  sidesCount: 0 | 1 | 2 | 3 | 4 = 1
 ): number {
-  const w = Math.max(0, Number(widthMm) || 450);
-  const h = Math.max(0, Number(heightMm) || 550);
-  const d = Math.max(0, Number(depthMm) || 380);
-
-  // Tapa (1) + Piso (1)
-  const horizontalMeters = calcPieceEdgeMetersBySides(w, d, sidesCount, 2);
-  // Laterales (2)
-  const verticalMeters = calcPieceEdgeMetersBySides(h, d, sidesCount, 2);
-
-  return Number((horizontalMeters + verticalMeters).toFixed(2));
+  const topAndFloorM = calcPieceEdgeMetersBySides(
+    widthMm,
+    depthMm,
+    sidesCount,
+    2
+  );
+  const sidesM = calcPieceEdgeMetersBySides(
+    heightMm - BOARD_THICKNESS_MM * 2,
+    depthMm,
+    sidesCount,
+    2
+  );
+  return Number((topAndFloorM + sidesM).toFixed(2));
 }
 
 /**
- * Calculates total linear edge meters for a single drawer based on its front sides (0..4)
- * and lateral/back sides (0..4).
+ * Calculates linear meters of edge banding (filo) for a single drawer
+ * based on how many sides have filo on the Front, Sides, and Back.
  */
-export function calcDrawerEdgeMeters(drawer: {
-  frontWidthMm?: number;
-  frontHeightMm?: number;
-  frontQty?: number;
-  sidesDepthMm?: number;
-  sidesHeightMm?: number;
-  sidesQty?: number;
-  backWidthMm?: number;
-  backHeightMm?: number;
-  backQty?: number;
-  edgeSidesCount?: 0 | 1 | 2 | 3 | 4;
-  sidesEdgeCount?: 0 | 1 | 2 | 3 | 4;
-}): number {
+export function calcDrawerEdgeMeters(
+  d: Pick<
+    DrawerSpec,
+    | 'frontWidthMm'
+    | 'frontHeightMm'
+    | 'frontQty'
+    | 'sidesDepthMm'
+    | 'sidesHeightMm'
+    | 'sidesQty'
+    | 'backWidthMm'
+    | 'backHeightMm'
+    | 'backQty'
+    | 'edgeSidesCount'
+    | 'sidesEdgeCount'
+    | 'backEdgeCount'
+  >
+): number {
   const frontSides = (
-    drawer.edgeSidesCount !== undefined ? drawer.edgeSidesCount : 4
+    d.edgeSidesCount !== undefined ? d.edgeSidesCount : 4
   ) as 0 | 1 | 2 | 3 | 4;
-  const innerSides = (
-    drawer.sidesEdgeCount !== undefined ? drawer.sidesEdgeCount : 1
+  const sideSides = (
+    d.sidesEdgeCount !== undefined ? d.sidesEdgeCount : 1
   ) as 0 | 1 | 2 | 3 | 4;
+  const backSides = (
+    d.backEdgeCount !== undefined ? d.backEdgeCount : sideSides
+  ) as 0 | 1 | 2 | 3 | 4;
+
+  const fQty = Math.max(1, Number(d.frontQty) || 1);
+  const sQty = Math.max(1, Number(d.sidesQty) || 2);
+  const bQty = Math.max(1, Number(d.backQty) || 1);
 
   const frontM = calcPieceEdgeMetersBySides(
-    Number(drawer.frontWidthMm) || 400,
-    Number(drawer.frontHeightMm) || 150,
+    d.frontWidthMm,
+    d.frontHeightMm,
     frontSides,
-    Number(drawer.frontQty) || 1
+    fQty
   );
-
   const sidesM = calcPieceEdgeMetersBySides(
-    Number(drawer.sidesDepthMm) || 350,
-    Number(drawer.sidesHeightMm) || 120,
-    innerSides,
-    Number(drawer.sidesQty) || 2
+    d.sidesDepthMm,
+    d.sidesHeightMm,
+    sideSides,
+    sQty
   );
-
   const backM = calcPieceEdgeMetersBySides(
-    Number(drawer.backWidthMm) || 350,
-    Number(drawer.backHeightMm) || 120,
-    innerSides,
-    Number(drawer.backQty) || 1
+    d.backWidthMm,
+    d.backHeightMm,
+    backSides,
+    bQty
   );
 
-  return Number((frontM + sidesM + backM).toFixed(2));
+  // Add 10% workshop trim safety margin if > 0
+  const rawTotal = frontM + sidesM + backM;
+  return Number((rawTotal > 0 ? rawTotal * 1.05 : 0).toFixed(2));
 }
 
 /**
- * Calculates internal available height for drawers in the cabinet.
- * totalHeight - (top + bottom melamine boards: 36mm) - (patas/zócalo: 120mm, or 60mm for lower cabinets)
- */
-export function getInternalAvailableHeight(
-  cabinetHeightMm: number,
-  legsHeightMm?: number
-): number {
-  const safeH = Number(cabinetHeightMm) || 550;
-  const effectiveLegs =
-    legsHeightMm !== undefined
-      ? legsHeightMm
-      : safeH <= 420
-      ? 60
-      : DEFAULT_LEGS_HEIGHT_MM;
-  const structureThickness = BOARD_THICKNESS_MM * 2; // 36mm
-  const usable = safeH - structureThickness - effectiveLegs;
-  return Math.max(0, usable);
-}
-
-/**
- * Calculates maximum number of functional drawers that can physically fit (up to 6).
- */
-export function getMaxDrawersAllowed(
-  cabinetHeightMm: number,
-  legsHeightMm?: number
-): number {
-  const internalH = getInternalAvailableHeight(cabinetHeightMm, legsHeightMm);
-  if (internalH <= 0) return 0;
-  const max = Math.floor(
-    (internalH + DRAWER_GAP_MM) / (MIN_DRAWER_FRONT_HEIGHT_MM + DRAWER_GAP_MM)
-  );
-  return Math.max(0, Math.min(6, max));
-}
-
-/**
- * Generates default parametric drawers and their individual piece specifications.
+ * Generates default DrawerSpec items using the workshop's standard cuts:
+ * Frente: 395 × 160 mm
+ * Cajones (Laterales / Contrafrente): 301.5 × 83 mm
  */
 export function generateDefaultDrawers(
-  count: number,
-  cabinetWidthMm: number,
-  cabinetHeightMm: number,
-  cabinetDepthMm: number,
-  legsHeightMm?: number
+  drawerCount: number,
+  cabinetWidthMm = 400,
+  cabinetHeightMm = 550,
+  cabinetDepthMm = 335
 ): DrawerSpec[] {
-  const safeCount = Math.max(0, Math.min(6, Number(count) || 0));
+  const safeCount = Math.max(0, Math.min(6, Math.round(Number(drawerCount) || 0)));
   if (safeCount <= 0) return [];
 
-  const safeW = Number(cabinetWidthMm) || 450;
-  const safeH = Number(cabinetHeightMm) || 550;
-  const safeD = Number(cabinetDepthMm) || 380;
+  const frontWidthMm = cabinetWidthMm === 400 ? 395 : Math.max(100, cabinetWidthMm - 5);
+  const frontHeightMm = safeCount === 1 ? 160 : Math.max(80, Math.floor((getInternalAvailableHeight(cabinetHeightMm) - (safeCount - 1) * DRAWER_GAP_MM) / safeCount));
+  const sidesDepthMm = cabinetDepthMm === 335 ? 301.5 : Math.max(150, Number((cabinetDepthMm - 33.5).toFixed(1)));
+  const sidesHeightMm = 83;
+  const backWidthMm = 301.5;
+  const backHeightMm = 83;
 
-  const internalH = getInternalAvailableHeight(safeH, legsHeightMm);
-  const totalGaps = (safeCount - 1) * DRAWER_GAP_MM;
-  const individualFrontHeight = Math.max(
-    MIN_DRAWER_FRONT_HEIGHT_MM,
-    Math.floor((internalH - totalGaps) / safeCount)
-  );
+  const bottomWidthMm = Number((backWidthMm + 12).toFixed(1));
+  const bottomDepthMm = Number((sidesDepthMm - 10).toFixed(1));
 
-  const internalWidthMm = Math.max(100, safeW - BOARD_THICKNESS_MM * 2);
-  const drawerBoxWidthMm = Math.max(
-    80,
-    Math.floor(internalWidthMm - SLIDE_CLEARANCE_PER_SIDE_MM * 2)
-  );
-
-  const frontWidthMm = Math.max(100, safeW - 4);
-  const sidesDepthMm = Math.max(150, Math.floor((safeD - 50) / 50) * 50);
-  const sidesHeightMm = Math.max(60, individualFrontHeight - 25);
-
-  const backWidthMm = Math.max(60, drawerBoxWidthMm - BOARD_THICKNESS_MM * 2);
-  const backHeightMm = sidesHeightMm;
-
-  const bottomWidthMm = drawerBoxWidthMm;
-  const bottomDepthMm = sidesDepthMm;
-
-  const standardSlideSize =
-    sidesDepthMm >= 400
-      ? 'Correderas Telescópicas 400mm H45'
-      : 'Correderas Telescópicas 350mm H45';
-
-  const defaultEdgeSidesCount: 0 | 1 | 2 | 3 | 4 = 4;
-  const defaultSidesEdgeCount: 0 | 1 | 2 | 3 | 4 = 1;
-  const defaultPricePerM = 650;
-
-  return Array.from({ length: safeCount }, (_, idx) => {
-    const calculatedEdgeMeters = calcDrawerEdgeMeters({
+  const result: DrawerSpec[] = [];
+  for (let i = 0; i < safeCount; i++) {
+    const partialSpec = {
       frontWidthMm,
-      frontHeightMm: individualFrontHeight,
+      frontHeightMm,
       frontQty: 1,
       sidesDepthMm,
       sidesHeightMm,
@@ -209,86 +209,90 @@ export function generateDefaultDrawers(
       backWidthMm,
       backHeightMm,
       backQty: 1,
-      edgeSidesCount: defaultEdgeSidesCount,
-      sidesEdgeCount: defaultSidesEdgeCount,
-    });
+      edgeSidesCount: 4 as const,
+      sidesEdgeCount: 1 as const,
+      backEdgeCount: 1 as const,
+    };
+    const edgeMeters = calcDrawerEdgeMeters(partialSpec);
+    const edgePricePerMeterArs = 650;
 
-    return {
-      id: `drw-${idx + 1}-${Date.now()}-${idx}`,
-      index: idx + 1,
-      frontPieceName: 'Frente de Cajón Melamina 18mm',
+    result.push({
+      id: `drw-${i + 1}`,
+      index: i + 1,
+      frontPieceName: 'Frente',
       frontWidthMm,
-      frontHeightMm: individualFrontHeight,
+      frontHeightMm,
       frontQty: 1,
-      sidesPieceName: 'Laterales de Cajón 18mm',
+      sidesPieceName: 'Cajones',
       sidesDepthMm,
       sidesHeightMm,
       sidesQty: 2,
-      backPieceName: 'Contrafrente de Cajón 18mm',
+      backPieceName: 'Contrafrente Cajón',
       backWidthMm,
       backHeightMm,
       backQty: 1,
       bottomWidthMm,
       bottomDepthMm,
       bottomQty: 1,
-      bottomMaterial: 'Fondo Fibroplus 3mm Blanco',
-      edgeSidesCount: defaultEdgeSidesCount,
-      sidesEdgeCount: defaultSidesEdgeCount,
-      edgeMeters: calculatedEdgeMeters,
-      edgePricePerMeterArs: defaultPricePerM,
-      edgeCostArs: Math.round(calculatedEdgeMeters * defaultPricePerM),
+      bottomMaterial: 'Fibroplus Blanco 3mm',
+      edgeSidesCount: 4,
+      sidesEdgeCount: 1,
+      backEdgeCount: 1,
+      edgeMeters,
+      edgePricePerMeterArs,
+      edgeCostArs: Math.round(edgeMeters * edgePricePerMeterArs),
       edgeType: 'Filo PVC 22mm × 0.45mm',
-      slideType: standardSlideSize,
+      slideType: '',
       slideQty: 1,
-      handleType: 'Tirador Perfil Oculto / Pomo Nórdico',
+      handleType: '',
       handleQty: 1,
-      screwType: 'Tornillos Fix 3.5×16mm / 4×40mm',
+      screwType: 'Tornillos Fix 4×30 / 3.5×16',
       screwsCount: 16,
-    };
-  });
+      customHardware: [],
+    });
+  }
+  return result;
 }
 
 /**
- * Safely normalizes an existing array of DrawerSpec so older saved items never crash the UI.
+ * Ensures any partial or legacy drawersConfig array has all required fields
  */
 export function normalizeDrawersConfig(
-  drawers: DrawerSpec[] | undefined,
-  count: number,
-  cabinetWidthMm: number,
-  cabinetHeightMm: number,
-  cabinetDepthMm: number
+  drawersConfig: DrawerSpec[] | undefined,
+  drawerCount: number,
+  cabinetWidthMm = 400,
+  cabinetHeightMm = 550,
+  cabinetDepthMm = 335
 ): DrawerSpec[] {
-  const safeCount = Math.max(0, Math.min(6, Number(count) || 0));
+  const safeCount = Math.max(0, Math.min(6, Math.round(Number(drawerCount) || 0)));
   if (safeCount === 0) return [];
+
   const defaults = generateDefaultDrawers(
     safeCount,
     cabinetWidthMm,
     cabinetHeightMm,
     cabinetDepthMm
   );
-  if (!Array.isArray(drawers) || drawers.length === 0) {
+
+  if (!Array.isArray(drawersConfig) || drawersConfig.length === 0) {
     return defaults;
   }
+
   return defaults.map((def, idx) => {
-    const existing = drawers[idx];
+    const existing = drawersConfig[idx];
     if (!existing) return def;
-    const edgeSidesCount = (
+    const fSides = (
       existing.edgeSidesCount !== undefined ? existing.edgeSidesCount : 4
     ) as 0 | 1 | 2 | 3 | 4;
-    const sidesEdgeCount = (
+    const sSides = (
       existing.sidesEdgeCount !== undefined ? existing.sidesEdgeCount : 1
     ) as 0 | 1 | 2 | 3 | 4;
+    const bSides = (
+      existing.backEdgeCount !== undefined ? existing.backEdgeCount : sSides
+    ) as 0 | 1 | 2 | 3 | 4;
     const pricePerM = Number(existing.edgePricePerMeterArs) || 650;
-    const computedMeters =
-      Number(existing.edgeMeters) ||
-      calcDrawerEdgeMeters({
-        ...def,
-        ...existing,
-        edgeSidesCount,
-        sidesEdgeCount,
-      });
 
-    return {
+    const merged: DrawerSpec = {
       ...def,
       ...existing,
       index: idx + 1,
@@ -304,239 +308,281 @@ export function normalizeDrawersConfig(
       bottomWidthMm: Number(existing.bottomWidthMm) || def.bottomWidthMm,
       bottomDepthMm: Number(existing.bottomDepthMm) || def.bottomDepthMm,
       bottomQty: Number(existing.bottomQty) || 1,
-      edgeSidesCount,
-      sidesEdgeCount,
-      edgeMeters: computedMeters,
+      edgeSidesCount: fSides,
+      sidesEdgeCount: sSides,
+      backEdgeCount: bSides,
       edgePricePerMeterArs: pricePerM,
-      edgeCostArs: Math.round(computedMeters * pricePerM),
+      screwsCount: Number(existing.screwsCount) || 16,
       slideQty: Number(existing.slideQty) || 1,
       handleQty: Number(existing.handleQty) || 1,
-      screwsCount: Number(existing.screwsCount) || 16,
+      customHardware: Array.isArray(existing.customHardware)
+        ? existing.customHardware
+        : [],
     };
+
+    const computedMeters =
+      Number(existing.edgeMeters) > 0
+        ? Number(existing.edgeMeters)
+        : calcDrawerEdgeMeters(merged);
+    merged.edgeMeters = computedMeters;
+    merged.edgeCostArs = Math.round(computedMeters * pricePerM);
+
+    return merged;
   });
 }
 
 /**
- * Validates that custom or configured drawers don't physically exceed available internal height.
+ * Validates whether a custom array of DrawerSpecs physically fits inside the cabinet height
  */
 export function validateDrawersFit(
   drawers: DrawerSpec[],
-  cabinetHeightMm: number,
-  legsHeightMm?: number
+  cabinetHeightMm: number
 ): {
   valid: boolean;
-  totalDrawerHeight: number;
-  internalHeight: number;
+  totalFrontsHeightMm: number;
+  availableHeightMm: number;
   errorMsg?: string;
 } {
-  const safeDrawers = Array.isArray(drawers) ? drawers : [];
-  if (safeDrawers.length === 0) {
-    const internalHeight = getInternalAvailableHeight(
-      cabinetHeightMm,
-      legsHeightMm
-    );
-    return { valid: true, totalDrawerHeight: 0, internalHeight };
+  const safeList = Array.isArray(drawers) ? drawers : [];
+  if (safeList.length === 0) {
+    return {
+      valid: true,
+      totalFrontsHeightMm: 0,
+      availableHeightMm: getInternalAvailableHeight(cabinetHeightMm),
+    };
   }
-  const internalHeight = getInternalAvailableHeight(
-    cabinetHeightMm,
-    legsHeightMm
-  );
-  const totalFrontHeight = safeDrawers.reduce(
-    (sum, d) => sum + (Number(d?.frontHeightMm) || MIN_DRAWER_FRONT_HEIGHT_MM),
+  const availableHeightMm = getInternalAvailableHeight(cabinetHeightMm);
+  const gapsTotal = Math.max(0, safeList.length - 1) * DRAWER_GAP_MM;
+  const frontsSum = safeList.reduce(
+    (acc, d) => acc + (Number(d?.frontHeightMm) || 0) * (Number(d?.frontQty) || 1),
     0
   );
-  const totalGaps = Math.max(0, safeDrawers.length - 1) * DRAWER_GAP_MM;
-  const totalNeeded = totalFrontHeight + totalGaps;
+  const totalRequired = frontsSum + gapsTotal;
 
-  if (totalNeeded > internalHeight) {
-    const maxDrawers = getMaxDrawersAllowed(cabinetHeightMm, legsHeightMm);
+  if (totalRequired > availableHeightMm) {
     return {
       valid: false,
-      totalDrawerHeight: totalNeeded,
-      internalHeight,
-      errorMsg: `Límite físico alcanzado: En una altura útil de ${internalHeight} mm caben máximo ${maxDrawers} cajones (Total requerido: ${totalNeeded} mm).`,
+      totalFrontsHeightMm: totalRequired,
+      availableHeightMm,
+      errorMsg: `Exceso de altura: Los ${safeList.length} frentes de cajón suman ${totalRequired} mm (incluyendo luces de ${DRAWER_GAP_MM} mm), pero el vano interno útil de la mesa (Alto ${cabinetHeightMm} mm) es de ${availableHeightMm} mm.`,
     };
   }
 
   return {
     valid: true,
-    totalDrawerHeight: totalNeeded,
-    internalHeight,
+    totalFrontsHeightMm: totalRequired,
+    availableHeightMm,
   };
 }
 
 /**
- * Converts drawers into BOM materials and wood cut pieces for Guillotine.
+ * Converts a DrawerSpec[] configuration into CutPieces for the 2D Guillotine
+ */
+export function getDrawerCutPieces(
+  drawers: DrawerSpec[],
+  furnitureTitle: string
+): Omit<CutPiece, 'id' | 'numberLabel'>[] {
+  const safeList = Array.isArray(drawers) ? drawers : [];
+  if (safeList.length === 0) return [];
+  const cuts: Omit<CutPiece, 'id' | 'numberLabel'>[] = [];
+
+  const mapSidesToEdgeType = (
+    s?: 0 | 1 | 2 | 3 | 4
+  ): { type: '0L' | '1L' | '2L' | '3L' | '4L'; label: string } => {
+    if (s === 0) return { type: '0L', label: 'Sin Tapacantos' };
+    if (s === 1) return { type: '1L', label: '1 Lado con filo' };
+    if (s === 2) return { type: '2L', label: '2 Lados con filo' };
+    if (s === 3) return { type: '3L', label: '3 Lados con filo' };
+    return { type: '4L', label: '4 Lados con filo' };
+  };
+
+  safeList.forEach((d, i) => {
+    const num = d?.index || i + 1;
+    const frontEdge = mapSidesToEdgeType(d.edgeSidesCount ?? 4);
+    const sideEdge = mapSidesToEdgeType(d.sidesEdgeCount ?? 1);
+    const backEdge = mapSidesToEdgeType(d.backEdgeCount ?? d.sidesEdgeCount ?? 1);
+
+    cuts.push({
+      name: `${d.frontPieceName || `Frente Cajón #${num}`} (${furnitureTitle})`,
+      subtitle: `Frente ${d.frontWidthMm}×${d.frontHeightMm}mm • Melamina 18mm`,
+      widthMm: Number(d.frontWidthMm) || 395,
+      heightMm: Number(d.frontHeightMm) || 160,
+      quantity: Number(d.frontQty) || 1,
+      unitPriceArs: 3600,
+      edgesLabel: frontEdge.label,
+      edgesType: frontEdge.type,
+      allowRotation: false,
+      mandatoryGrain: true,
+    });
+
+    cuts.push({
+      name: `${d.sidesPieceName || `Laterales Cajón #${num}`} (${furnitureTitle})`,
+      subtitle: `Lateral ${d.sidesDepthMm}×${d.sidesHeightMm}mm • Melamina 18mm`,
+      widthMm: Number(d.sidesDepthMm) || 301.5,
+      heightMm: Number(d.sidesHeightMm) || 83,
+      quantity: Number(d.sidesQty) || 2,
+      unitPriceArs: 2800,
+      edgesLabel: sideEdge.label,
+      edgesType: sideEdge.type,
+      allowRotation: true,
+      mandatoryGrain: false,
+    });
+
+    cuts.push({
+      name: `${d.backPieceName || `Contrafrente Cajón #${num}`} (${furnitureTitle})`,
+      subtitle: `Contrafrente ${d.backWidthMm}×${d.backHeightMm}mm • Melamina 18mm`,
+      widthMm: Number(d.backWidthMm) || 301.5,
+      heightMm: Number(d.backHeightMm) || 83,
+      quantity: Number(d.backQty) || 1,
+      unitPriceArs: 2400,
+      edgesLabel: backEdge.label,
+      edgesType: backEdge.type,
+      allowRotation: true,
+      mandatoryGrain: false,
+    });
+  });
+
+  return cuts;
+}
+
+/**
+ * Builds dynamic BOM material lines from the configured drawers + structure filo + inventory hardware
  */
 export function getDrawerBomItems(
   drawers: DrawerSpec[],
   structureEdgeMeters = 0,
   edgePricePerMeterArs = 650
 ): BomMaterialItem[] {
-  const safeDrawers = Array.isArray(drawers) ? drawers : [];
-  const count = safeDrawers.length;
+  const safeList = Array.isArray(drawers) ? drawers : [];
 
-  const totalDrawerMeters = safeDrawers.reduce(
+  const drawersEdgeMeters = safeList.reduce(
     (acc, d) => acc + (Number(d?.edgeMeters) || 0),
     0
   );
-  const totalCombinedEdgeMeters = Number(
-    (totalDrawerMeters + Math.max(0, Number(structureEdgeMeters) || 0)).toFixed(
-      2
-    )
+  const totalEdgeMeters = Number(
+    (drawersEdgeMeters + (Number(structureEdgeMeters) || 0)).toFixed(2)
   );
-  const effectiveEdgePrice =
-    Number(edgePricePerMeterArs) ||
-    Number(safeDrawers[0]?.edgePricePerMeterArs) ||
-    650;
+  const safeEdgePrice = Math.max(0, Number(edgePricePerMeterArs) || 650);
 
-  const items: BomMaterialItem[] = [];
+  const bom: BomMaterialItem[] = [];
 
-  if (count > 0) {
-    const totalSlides = safeDrawers.reduce(
-      (acc, d) => acc + (Number(d?.slideQty) || 1),
-      0
-    );
-    const totalHandles = safeDrawers.reduce(
-      (acc, d) => acc + (Number(d?.handleQty) || 1),
-      0
-    );
-    const totalScrews = safeDrawers.reduce(
-      (acc, d) => acc + (Number(d?.screwsCount) || 16),
-      0
-    );
-
-    items.push(
-      {
-        id: `bom-drw-slides-${count}`,
-        code: 'HER-CORR-TEL',
-        name: `Par Correderas (${
-          safeDrawers[0]?.slideType || 'Telescópicas 350mm'
-        })`,
-        subtitle: `${totalSlides} pares para los ${count} cajones del módulo`,
-        unitPriceArs: 8400,
-        unitLabel: 'par',
-        quantity: totalSlides,
-        step: 1,
-        iconType: 'slide',
-        cadQuantityLabel: `${totalSlides} pares`,
-      },
-      {
-        id: `bom-drw-handles-${count}`,
-        code: 'HER-TIR-PERF',
-        name:
-          safeDrawers[0]?.handleType || 'Tirador Perfil Oculto / Pomo Nórdico',
-        subtitle: `Tiradores para frentes de cajón`,
-        unitPriceArs: 3200,
-        unitLabel: 'unid',
-        quantity: totalHandles,
-        step: 1,
-        iconType: 'slide',
-        cadQuantityLabel: `${totalHandles} u.`,
-      },
-      {
-        id: `bom-drw-screws-${count}`,
-        code: 'INS-TORN-3516',
-        name:
-          safeDrawers[0]?.screwType || 'Tornillos Autoperforantes 3.5×16mm',
-        subtitle: `Fijación correderas y fondos (${totalScrews} u.)`,
-        unitPriceArs: 45,
-        unitLabel: 'unid',
-        quantity: totalScrews,
-        step: 4,
-        iconType: 'screw',
-        cadQuantityLabel: `${totalScrews} u.`,
-      }
-    );
-  }
-
-  if (totalCombinedEdgeMeters > 0) {
-    items.push({
-      id: `bom-drw-edge-${count}`,
-      code: 'INS-FILO-PVC',
-      name:
-        safeDrawers[0]?.edgeType ||
-        'Filo PVC 22×0.45mm (Estructura + Cajones)',
-      subtitle: `Cálculo automático según lados con filo (${totalCombinedEdgeMeters.toFixed(
-        2
-      )} m)`,
-      unitPriceArs: effectiveEdgePrice,
+  if (totalEdgeMeters > 0) {
+    bom.push({
+      id: 'bom-drw-edge',
+      code: 'F01',
+      name: safeList[0]?.edgeType || 'Filo PVC 22mm × 0.45mm',
+      subtitle: `Estructura (${structureEdgeMeters.toFixed(2)}m) + Cajones (${drawersEdgeMeters.toFixed(2)}m)`,
+      unitPriceArs: safeEdgePrice,
       unitLabel: 'm',
-      quantity: totalCombinedEdgeMeters,
+      quantity: totalEdgeMeters,
       step: 0.5,
       iconType: 'edge',
-      cadQuantityLabel: `${totalCombinedEdgeMeters.toFixed(2)} m`,
     });
   }
 
-  return items;
-}
+  if (safeList.length === 0) return bom;
 
-/**
- * Extracts wood cut pieces for Guillotine from drawers.
- */
-export function getDrawerWoodCutPieces(
-  drawers: DrawerSpec[]
-): Omit<CutPiece, 'id' | 'numberLabel'>[] {
-  const pieces: Omit<CutPiece, 'id' | 'numberLabel'>[] = [];
-  if (!Array.isArray(drawers)) return pieces;
+  const totalSlides = safeList.reduce(
+    (acc, d) => acc + (Number(d?.slideQty) || 0),
+    0
+  );
+  const totalHandles = safeList.reduce(
+    (acc, d) => acc + (Number(d?.handleQty) || 0),
+    0
+  );
+  const totalScrews = safeList.reduce(
+    (acc, d) => acc + (Number(d?.screwsCount) || 16),
+    0
+  );
+  const totalBottomAreaM2 = Number(
+    safeList
+      .reduce(
+        (acc, d) =>
+          acc +
+          ((Number(d?.bottomWidthMm) || 300) *
+            (Number(d?.bottomDepthMm) || 300) *
+            (Number(d?.bottomQty) || 1)) /
+            1_000_000,
+        0
+      )
+      .toFixed(2)
+  );
 
-  drawers.forEach((d, idx) => {
-    const frontSides = d.edgeSidesCount !== undefined ? d.edgeSidesCount : 4;
-    const innerSides = d.sidesEdgeCount !== undefined ? d.sidesEdgeCount : 1;
+  const slideLabel = safeList[0]?.slideType;
+  const handleLabel = safeList[0]?.handleType;
 
-    const mapSidesToCode = (
-      s: number
-    ): { type: '0L' | '1L' | '2L' | '3L' | '4L'; label: string } => {
-      if (s === 0) return { type: '0L', label: '0 Lados (Sin filo)' };
-      if (s === 1) return { type: '1L', label: '1 Lado con filo' };
-      if (s === 2) return { type: '2L', label: '2 Lados con filo' };
-      if (s === 3) return { type: '3L', label: '3 Lados con filo' };
-      return { type: '4L', label: '4 Lados con filo' };
-    };
-
-    const frontEdge = mapSidesToCode(frontSides);
-    const innerEdge = mapSidesToCode(innerSides);
-
-    pieces.push({
-      name: d.frontPieceName || `Frente Cajón #${idx + 1}`,
-      subtitle: `Melamina 18mm • ${d.frontWidthMm} × ${d.frontHeightMm} mm`,
-      widthMm: Number(d.frontWidthMm) || 400,
-      heightMm: Number(d.frontHeightMm) || 150,
-      quantity: Number(d.frontQty) || 1,
-      unitPriceArs: 4800,
-      edgesLabel: frontEdge.label,
-      edgesType: frontEdge.type,
-      allowRotation: true,
-      mandatoryGrain: false,
+  if (slideLabel && totalSlides > 0) {
+    bom.push({
+      id: 'bom-drw-slides',
+      code: 'C01',
+      name: slideLabel,
+      subtitle: `${totalSlides} par(es) para ${safeList.length} cajón(es)`,
+      unitPriceArs: 6800,
+      unitLabel: 'par',
+      quantity: totalSlides,
+      step: 1,
+      iconType: 'slide',
     });
+  }
 
-    pieces.push({
-      name: d.sidesPieceName || `Laterales Cajón #${idx + 1}`,
-      subtitle: `Melamina 18mm • ${d.sidesDepthMm} × ${d.sidesHeightMm} mm`,
-      widthMm: Number(d.sidesDepthMm) || 350,
-      heightMm: Number(d.sidesHeightMm) || 120,
-      quantity: Number(d.sidesQty) || 2,
-      unitPriceArs: 3200,
-      edgesLabel: innerEdge.label,
-      edgesType: innerEdge.type,
-      allowRotation: true,
-      mandatoryGrain: false,
-    });
-
-    pieces.push({
-      name: d.backPieceName || `Contrafrente Cajón #${idx + 1}`,
-      subtitle: `Melamina 18mm • ${d.backWidthMm} × ${d.backHeightMm} mm`,
-      widthMm: Number(d.backWidthMm) || 350,
-      heightMm: Number(d.backHeightMm) || 120,
-      quantity: Number(d.backQty) || 1,
+  if (handleLabel && totalHandles > 0) {
+    bom.push({
+      id: 'bom-drw-handles',
+      code: 'C02',
+      name: handleLabel,
+      subtitle: `Herraje frontal asignado (${totalHandles} u.)`,
       unitPriceArs: 2900,
-      edgesLabel: innerEdge.label,
-      edgesType: innerEdge.type,
-      allowRotation: true,
-      mandatoryGrain: false,
+      unitLabel: 'un',
+      quantity: totalHandles,
+      step: 1,
+      iconType: 'leg',
     });
+  }
+
+  // Include all custom hardware items selected from Inventory across the drawers
+  safeList.forEach((d, dIdx) => {
+    if (Array.isArray(d.customHardware)) {
+      d.customHardware.forEach((hw, hIdx) => {
+        bom.push({
+          id: `bom-drw-hw-${dIdx}-${hIdx}`,
+          code: `H${dIdx + 1}${hIdx + 1}`,
+          name: hw.name,
+          subtitle: `Herraje Cajón #${dIdx + 1} (Inventario)`,
+          unitPriceArs: hw.unitPriceArs,
+          unitLabel: 'un',
+          quantity: hw.quantity,
+          step: 1,
+          iconType: 'screw',
+          inventoryItemId: hw.inventoryItemId,
+        });
+      });
+    }
   });
 
-  return pieces;
+  bom.push(
+    {
+      id: 'bom-drw-bottom',
+      code: 'C03',
+      name: safeList[0]?.bottomMaterial || 'Fondo Fibroplus 3mm',
+      subtitle: `${safeList.length} fondo(s) de cajón ranurado`,
+      unitPriceArs: 14500,
+      unitLabel: 'm²',
+      quantity: Math.max(0.1, totalBottomAreaM2),
+      step: 0.1,
+      iconType: 'board',
+    },
+    {
+      id: 'bom-drw-screws',
+      code: 'C04',
+      name: safeList[0]?.screwType || 'Tornillos Fix Armado de Cajón',
+      subtitle: `${totalScrews} tornillos totales para ${safeList.length} cajón(es)`,
+      unitPriceArs: 45,
+      unitLabel: 'un',
+      quantity: totalScrews,
+      step: 4,
+      iconType: 'screw',
+    }
+  );
+
+  return bom;
 }

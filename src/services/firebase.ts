@@ -69,7 +69,8 @@ export async function fetchDocFromCloud(collectionName: string, docId: string) {
 }
 
 /**
- * Real-Time onSnapshot listener for multi-device synchronization across the 3 workshop phones
+ * Real-Time onSnapshot listener for multi-device synchronization across the 3 workshop phones.
+ * Ignores local pending-write echoes so active user edits are never overwritten or reset.
  */
 export function subscribeToWorkshopState(
   onData: (data: Record<string, any>, fromCache: boolean) => void,
@@ -79,11 +80,15 @@ export function subscribeToWorkshopState(
     const docRef = doc(db, 'workshop_state', 'current');
     return onSnapshot(
       docRef,
-      { includeMetadataChanges: true },
       (snapshot) => {
         const isFromCache = snapshot.metadata.fromCache;
+        const hasPendingWrites = snapshot.metadata.hasPendingWrites;
         if (onStatusChange) {
           onStatusChange(!isFromCache && navigator.onLine);
+        }
+        // Never overwrite local state with our own pending write echo
+        if (hasPendingWrites) {
+          return;
         }
         if (snapshot.exists()) {
           onData(snapshot.data(), isFromCache);

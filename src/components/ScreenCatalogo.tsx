@@ -11,6 +11,8 @@ import {
   ImagePlus,
   Trash2,
   Disc,
+  Plus,
+  RotateCcw,
 } from 'lucide-react';
 import {
   FurnitureDesign,
@@ -18,16 +20,23 @@ import {
   DrawerSpec,
   CutPiece,
   PredefinedCut,
+  DesignCutPiece,
 } from '../types/atelier';
 import {
   generateDefaultDrawers,
   normalizeDrawersConfig,
   validateDrawersFit,
   getDrawerBomItems,
-  calcCabinetStructureEdgeMeters,
+  calcStructureCutsEdgeMeters,
+  calcPieceEdgeMetersBySides,
 } from '../utils/drawerEngine';
 import { DrawerConfiguratorBar } from './DrawerConfiguratorBar';
-import { formatARS } from '../data/initialData';
+import {
+  formatARS,
+  formatMm,
+  parseMm,
+  DEFAULT_CATALOG_STRUCTURE_CUTS,
+} from '../data/initialData';
 
 interface ScreenCatalogoProps {
   designs: FurnitureDesign[];
@@ -53,6 +62,10 @@ interface ScreenCatalogoProps {
 }
 
 const EDGE_SIDES_OPTIONS: (0 | 1 | 2 | 3 | 4)[] = [0, 1, 2, 3, 4];
+
+function cloneDefaultStructureCuts(): DesignCutPiece[] {
+  return DEFAULT_CATALOG_STRUCTURE_CUTS.map((c) => ({ ...c }));
+}
 
 function compressImageToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -104,38 +117,38 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Edit design modal state
+  // Edit design modal state (100% en milímetros)
   const [editingDesign, setEditingDesign] = useState<FurnitureDesign | null>(
     null
   );
   const [editTitle, setEditTitle] = useState('');
-  const [editWidthCm, setEditWidthCm] = useState('45');
-  const [editHeightCm, setEditHeightCm] = useState('55');
-  const [editDepthCm, setEditDepthCm] = useState('38');
+  const [editWidthMm, setEditWidthMm] = useState('400');
+  const [editHeightMm, setEditHeightMm] = useState('550');
+  const [editDepthMm, setEditDepthMm] = useState('335');
   const [editPriceArs, setEditPriceArs] = useState('85000');
-  const [editStructureEdgeSides, setEditStructureEdgeSides] = useState<
-    0 | 1 | 2 | 3 | 4
-  >(1);
+  const [editStructureCuts, setEditStructureCuts] = useState<DesignCutPiece[]>(
+    () => cloneDefaultStructureCuts()
+  );
   const [editEdgePricePerM, setEditEdgePricePerM] = useState('650');
   const [editDrawerCount, setEditDrawerCount] = useState<number>(1);
   const [editDrawersConfig, setEditDrawersConfig] = useState<DrawerSpec[]>([]);
   const [editThumbnailUrl, setEditThumbnailUrl] = useState<string>('');
   const [geometricError, setGeometricError] = useState<string | null>(null);
 
-  // New design modal state
+  // New design modal state (100% en milímetros)
   const [showNewDesignModal, setShowNewDesignModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newWidthCm, setNewWidthCm] = useState('45');
-  const [newHeightCm, setNewHeightCm] = useState('55');
-  const [newDepthCm, setNewDepthCm] = useState('38');
+  const [newWidthMm, setNewWidthMm] = useState('400');
+  const [newHeightMm, setNewHeightMm] = useState('550');
+  const [newDepthMm, setNewDepthMm] = useState('335');
   const [newPriceArs, setNewPriceArs] = useState('85000');
-  const [newStructureEdgeSides, setNewStructureEdgeSides] = useState<
-    0 | 1 | 2 | 3 | 4
-  >(1);
+  const [newStructureCuts, setNewStructureCuts] = useState<DesignCutPiece[]>(
+    () => cloneDefaultStructureCuts()
+  );
   const [newEdgePricePerM, setNewEdgePricePerM] = useState('650');
   const [newDrawerCount, setNewDrawerCount] = useState<number>(1);
   const [newDrawersConfig, setNewDrawersConfig] = useState<DrawerSpec[]>(() =>
-    generateDefaultDrawers(1, 450, 550, 380)
+    generateDefaultDrawers(1, 400, 550, 335)
   );
   const [newThumbnailUrl, setNewThumbnailUrl] = useState<string>('');
   const [newGeometricError, setNewGeometricError] = useState<string | null>(
@@ -152,15 +165,20 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
     return catTitle.includes(q) || nameStr.includes(q) || codeStr.includes(q);
   });
 
+  // Helper to update a single cut in a DesignCutPiece[] list
+  const updateCutInList = (
+    list: DesignCutPiece[],
+    id: string,
+    updates: Partial<DesignCutPiece>
+  ): DesignCutPiece[] =>
+    list.map((c) => (c.id === id ? { ...c, ...updates } : c));
+
   // Defensive readiness helper
   const getReadinessForDesign = (
     design: FurnitureDesign | null,
     drawerCountOverride?: number,
-    structureSidesOverride?: 0 | 1 | 2 | 3 | 4
+    customCutsOverride?: DesignCutPiece[]
   ) => {
-    const safeW = Number(design?.widthMm) || 450;
-    const safeH = Number(design?.heightMm) || 550;
-    const safeD = Number(design?.depthMm) || 380;
     const titleLabel =
       design?.catalogTitle || design?.name || 'Mesa de Luz J&L';
 
@@ -171,10 +189,13 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
         ? Number(design.drawerCount)
         : 1;
 
-    const structSides =
-      structureSidesOverride !== undefined
-        ? structureSidesOverride
-        : (design?.structureEdgeSidesCount ?? 1);
+    const structureList =
+      customCutsOverride && customCutsOverride.length > 0
+        ? customCutsOverride
+        : Array.isArray(design?.structureCuts) &&
+          design!.structureCuts!.length > 0
+        ? design!.structureCuts!
+        : DEFAULT_CATALOG_STRUCTURE_CUTS;
 
     const mapSidesType = (
       s: number
@@ -186,43 +207,31 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
       return { type: '4L', label: '4 Lados con filo' };
     };
 
-    const structEdgeInfo = mapSidesType(structSides);
-
-    const woodChecks = [
-      { name: 'Tapa', needed: 1 },
-      { name: 'Lateral', needed: 2 },
-      { name: 'Piso', needed: 1 },
-      ...(drwCount > 0
-        ? [
-            { name: 'Frente', needed: drwCount },
-            { name: 'Cajón', needed: drwCount * 2 },
-          ]
-        : []),
-    ];
-
     const missingWoodPieces: Omit<CutPiece, 'id' | 'numberLabel'>[] = [];
     let missingWoodCount = 0;
 
-    woodChecks.forEach((wc) => {
+    structureList.forEach((sc) => {
       const match = inventoryItems.find(
         (it) =>
           it &&
           it.category === 'pieza_cortada' &&
-          (it.name || '').toLowerCase().includes(wc.name.toLowerCase())
+          (it.name || '').toLowerCase().includes(sc.name.toLowerCase())
       );
       const stock = match ? Number(match.stockQty) || 0 : 0;
-      if (stock < wc.needed) {
-        const diff = wc.needed - stock;
+      const needed = Math.max(1, Number(sc.quantity) || 1);
+      if (stock < needed) {
+        const diff = needed - stock;
         missingWoodCount += diff;
+        const edgeInfo = mapSidesType(sc.edgeSidesCount ?? 2);
         missingWoodPieces.push({
-          name: `${wc.name} (${titleLabel})`,
-          subtitle: `Pieza faltante de Escandallo BOM • Melamina 18mm`,
-          widthMm: wc.name === 'Tapa' || wc.name === 'Piso' ? safeW : safeD,
-          heightMm: wc.name === 'Lateral' ? safeH : safeD,
+          name: `${sc.name} (${titleLabel})`,
+          subtitle: `${formatMm(sc.lengthMm)} × ${formatMm(sc.depthMm)} mm • Melamina 18mm`,
+          widthMm: sc.lengthMm,
+          heightMm: sc.depthMm,
           quantity: diff,
           unitPriceArs: 4800,
-          edgesLabel: structEdgeInfo.label,
-          edgesType: structEdgeInfo.type,
+          edgesLabel: edgeInfo.label,
+          edgesType: edgeInfo.type,
           allowRotation: true,
           mandatoryGrain: false,
         });
@@ -280,12 +289,12 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
     }
   };
 
-  // Safe defensive opener for Edit Modal
+  // Safe defensive opener for Edit Modal (100% en milímetros)
   const handleOpenEdit = (design: FurnitureDesign) => {
     if (!design) return;
-    const safeW = Number(design?.widthMm) || 450;
+    const safeW = Number(design?.widthMm) || 400;
     const safeH = Number(design?.heightMm) || 550;
-    const safeD = Number(design?.depthMm) || 380;
+    const safeD = Number(design?.depthMm) || 335;
     const drwCount =
       design?.drawerCount !== undefined
         ? Math.max(0, Math.min(6, Number(design.drawerCount) || 0))
@@ -293,14 +302,14 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
 
     setEditingDesign(design);
     setEditTitle(design?.catalogTitle || design?.name || 'Mesa Blanca Común');
-    setEditWidthCm(String(Math.max(10, Math.round(safeW / 10))));
-    setEditHeightCm(String(Math.max(10, Math.round(safeH / 10))));
-    setEditDepthCm(String(Math.max(10, Math.round(safeD / 10))));
+    setEditWidthMm(String(safeW));
+    setEditHeightMm(String(safeH));
+    setEditDepthMm(String(safeD));
     setEditPriceArs(String(Number(design?.suggestedPvpArs) || 85000));
-    setEditStructureEdgeSides(
-      (design?.structureEdgeSidesCount !== undefined
-        ? design.structureEdgeSidesCount
-        : 1) as 0 | 1 | 2 | 3 | 4
+    setEditStructureCuts(
+      Array.isArray(design?.structureCuts) && design.structureCuts.length > 0
+        ? design.structureCuts.map((c) => ({ ...c }))
+        : cloneDefaultStructureCuts()
     );
     setEditEdgePricePerM(
       String(Number(design?.edgePricePerMeterArs) || 650)
@@ -322,10 +331,10 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDesign) return;
-    const wMm = Math.max(150, (parseInt(editWidthCm, 10) || 45) * 10);
-    const hMm = Math.max(150, (parseInt(editHeightCm, 10) || 55) * 10);
-    const dMm = Math.max(150, (parseInt(editDepthCm, 10) || 38) * 10);
-    const pvpArs = Math.max(5000, parseInt(editPriceArs, 10) || 85000);
+    const wMm = Math.max(50, parseMm(editWidthMm, 400));
+    const hMm = Math.max(50, parseMm(editHeightMm, 550));
+    const dMm = Math.max(50, parseMm(editDepthMm, 335));
+    const pvpArs = Math.max(1000, parseInt(editPriceArs, 10) || 85000);
     const edgePriceM = Math.max(0, parseInt(editEdgePricePerM, 10) || 650);
 
     const fitCheck = validateDrawersFit(editDrawersConfig, hMm);
@@ -337,12 +346,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
       return;
     }
 
-    const structEdgeM = calcCabinetStructureEdgeMeters(
-      wMm,
-      hMm,
-      dMm,
-      editStructureEdgeSides
-    );
+    const structEdgeM = calcStructureCutsEdgeMeters(editStructureCuts);
     const drwEdgeM = editDrawersConfig.reduce(
       (acc, d) => acc + (Number(d.edgeMeters) || 0),
       0
@@ -368,7 +372,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
         suggestedPvpArs: pvpArs,
         drawerCount: editDrawerCount,
         drawersConfig: editDrawersConfig,
-        structureEdgeSidesCount: editStructureEdgeSides,
+        structureCuts: editStructureCuts,
         edgePricePerMeterArs: edgePriceM,
         totalEdgeMeters: totalEdgeM,
         totalEdgeCostArs: totalEdgeCost,
@@ -377,13 +381,15 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
           structEdgeM,
           edgePriceM
         ),
-        cutPiecesCount: 4 + editDrawerCount * 4,
+        cutPiecesCount:
+          editStructureCuts.reduce((a, c) => a + (Number(c.quantity) || 1), 0) +
+          editDrawerCount * 4,
         thumbnailUrl: editThumbnailUrl || undefined,
       });
     }
     setEditingDesign(null);
     onShowToast(
-      `Diseño actualizado (${editDrawerCount} caj. • Filo: ${totalEdgeM}m = ${formatARS(
+      `Diseño guardado en mm (${formatMm(wMm)}×${formatMm(hMm)}×${formatMm(dMm)}mm • Filo: ${totalEdgeM}m = ${formatARS(
         totalEdgeCost
       )})`
     );
@@ -398,10 +404,10 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
 
   const handleCreateNewDesign = (e: React.FormEvent) => {
     e.preventDefault();
-    const wMm = Math.max(150, (parseInt(newWidthCm, 10) || 45) * 10);
-    const hMm = Math.max(150, (parseInt(newHeightCm, 10) || 55) * 10);
-    const dMm = Math.max(150, (parseInt(newDepthCm, 10) || 38) * 10);
-    const pvpArs = Math.max(5000, parseInt(newPriceArs, 10) || 85000);
+    const wMm = Math.max(50, parseMm(newWidthMm, 400));
+    const hMm = Math.max(50, parseMm(newHeightMm, 550));
+    const dMm = Math.max(50, parseMm(newDepthMm, 335));
+    const pvpArs = Math.max(1000, parseInt(newPriceArs, 10) || 85000);
     const edgePriceM = Math.max(0, parseInt(newEdgePricePerM, 10) || 650);
     const codeNum = 4560 + safeDesigns.length;
 
@@ -414,12 +420,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
       return;
     }
 
-    const structEdgeM = calcCabinetStructureEdgeMeters(
-      wMm,
-      hMm,
-      dMm,
-      newStructureEdgeSides
-    );
+    const structEdgeM = calcStructureCutsEdgeMeters(newStructureCuts);
     const drwEdgeM = newDrawersConfig.reduce(
       (acc, d) => acc + (Number(d.edgeMeters) || 0),
       0
@@ -432,12 +433,14 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
       name: newTitle.trim() || 'Mesita Nórdica Nueva',
       shortTitle: (newTitle.trim() || 'MESITA NÓRDICA').toUpperCase(),
       catalogTitle: newTitle.trim() || 'Mesita Nórdica Nueva',
-      description: 'Mesa de luz con cajón ensamblado y corredera telescópica.',
+      description: 'Mesa de luz con cortes y filos a medida en milímetros.',
       widthMm: wMm,
       heightMm: hMm,
       depthMm: dMm,
-      materialSummary: 'Melamina Carvalho Mezzo 18mm',
-      cutPiecesCount: 4 + newDrawerCount * 4,
+      materialSummary: 'Melamina 18mm',
+      cutPiecesCount:
+        newStructureCuts.reduce((a, c) => a + (Number(c.quantity) || 1), 0) +
+        newDrawerCount * 4,
       suggestedPvpArs: pvpArs,
       baseCostArs: Math.round(pvpArs * 0.45),
       activeInWorkshop: true,
@@ -445,7 +448,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
       frontTexture: 'Carvalho',
       drawerCount: newDrawerCount,
       drawersConfig: newDrawersConfig,
-      structureEdgeSidesCount: newStructureEdgeSides,
+      structureCuts: newStructureCuts,
       edgePricePerMeterArs: edgePriceM,
       totalEdgeMeters: totalEdgeM,
       totalEdgeCostArs: totalEdgeCost,
@@ -457,9 +460,265 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
     setNewThumbnailUrl('');
     setShowNewDesignModal(false);
     onShowToast(
-      `Nuevo diseño creado (${newDrawerCount} caj. • Filo: ${totalEdgeM}m = ${formatARS(
+      `Nuevo diseño creado en mm (${formatMm(wMm)}×${formatMm(hMm)}×${formatMm(dMm)}mm • Filo: ${totalEdgeM}m = ${formatARS(
         totalEdgeCost
       )})`
+    );
+  };
+
+  // Shared Renderer for the Per-Cut Editable Structure & Filo List inside Modals
+  const renderStructureCutsFiloEditor = (
+    cuts: DesignCutPiece[],
+    setCuts: React.Dispatch<React.SetStateAction<DesignCutPiece[]>>,
+    edgePricePerM: string,
+    setEdgePricePerM: (v: string) => void,
+    structEdgeM: number,
+    drwEdgeM: number,
+    drwCount: number,
+    totalEdgeM: number,
+    totalEdgeCost: number
+  ) => {
+    const safePriceM = Math.max(0, parseInt(edgePricePerM, 10) || 650);
+
+    return (
+      <div className="p-3.5 rounded-2xl bg-[#181a1a] border border-[#e87a50]/35 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+            <Disc className="w-4 h-4 text-[#e87a50] shrink-0" />
+            <span>
+              Cortes Cargados y Lados con Filo (Por Separado en mm)
+            </span>
+          </div>
+          <span className="text-xs font-extrabold text-[#ffb59b] tabular-nums shrink-0">
+            {totalEdgeM.toFixed(2)} m = {formatARS(totalEdgeCost)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10.5px] text-[#c8c6c5]">
+            Editá las medidas (mm) y elegí cuántos lados llevan filo en cada
+            pieza por separado:
+          </span>
+          <button
+            type="button"
+            onClick={() => setCuts(cloneDefaultStructureCuts())}
+            title="Restaurar los 7 cortes por defecto"
+            className="px-2 py-1 rounded-lg bg-[#222424] hover:bg-[#2c2e2e] border border-white/10 text-[10px] font-bold text-[#ffb59b] flex items-center gap-1 shrink-0 cursor-pointer"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Por defecto</span>
+          </button>
+        </div>
+
+        {/* Lista de cada corte con edición en mm + selector individual de 0 a 4 lados de filo */}
+        <div className="space-y-2 max-h-[340px] overflow-y-auto pr-0.5">
+          {cuts.map((cut) => {
+            const pieceMeters = calcPieceEdgeMetersBySides(
+              cut.lengthMm,
+              cut.depthMm,
+              cut.edgeSidesCount,
+              cut.quantity
+            );
+            const pieceFiloCost = Math.round(pieceMeters * safePriceM);
+
+            return (
+              <div
+                key={cut.id}
+                className="bg-[#141616] p-2.5 rounded-xl border border-white/10 space-y-2"
+              >
+                {/* Fila 1: Nombre, Largo (mm), Profundidad (mm), Cant, Eliminar */}
+                <div className="grid grid-cols-12 gap-1.5 items-end">
+                  <div className="col-span-4">
+                    <label className="block text-[9px] font-bold text-[#c8c6c5] mb-0.5">
+                      Pieza / Corte
+                    </label>
+                    <input
+                      type="text"
+                      value={cut.name}
+                      onChange={(e) =>
+                        setCuts((prev) =>
+                          updateCutInList(prev, cut.id, {
+                            name: e.target.value,
+                          })
+                        )
+                      }
+                      className="w-full h-7 bg-[#222424] border border-white/15 rounded-lg px-2 text-[11px] font-bold text-white"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="block text-[9px] font-bold text-[#c8c6c5] mb-0.5">
+                      Largo (mm)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={cut.lengthMm}
+                      onChange={(e) =>
+                        setCuts((prev) =>
+                          updateCutInList(prev, cut.id, {
+                            lengthMm: parseMm(e.target.value, cut.lengthMm),
+                          })
+                        )
+                      }
+                      className="w-full h-7 bg-[#222424] border border-white/15 rounded-lg px-1.5 text-[11px] font-bold text-center text-white tabular-nums"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="block text-[9px] font-bold text-[#ffb59b] mb-0.5">
+                      Prof. (mm)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={cut.depthMm}
+                      onChange={(e) =>
+                        setCuts((prev) =>
+                          updateCutInList(prev, cut.id, {
+                            depthMm: parseMm(e.target.value, cut.depthMm),
+                          })
+                        )
+                      }
+                      className="w-full h-7 bg-[#222424] border border-[#e87a50]/60 rounded-lg px-1.5 text-[11px] font-bold text-center text-white tabular-nums"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[9px] font-bold text-[#c8c6c5] mb-0.5">
+                      Cant
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={cut.quantity}
+                      onChange={(e) =>
+                        setCuts((prev) =>
+                          updateCutInList(prev, cut.id, {
+                            quantity: Math.max(
+                              1,
+                              parseInt(e.target.value, 10) || 1
+                            ),
+                          })
+                        )
+                      }
+                      className="w-full h-7 bg-[#222424] border border-white/15 rounded-lg px-1 text-[11px] font-bold text-center text-white tabular-nums"
+                    />
+                  </div>
+                  <div className="col-span-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCuts((prev) => prev.filter((c) => c.id !== cut.id))
+                      }
+                      title="Quitar este corte"
+                      className="h-7 w-7 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-200 border border-red-400/30 flex items-center justify-center cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Fila 2: Botones para elegir cuántos lados lleva el filo en ESTA pieza */}
+                <div className="space-y-1 pt-0.5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-[#c8c6c5] font-semibold">
+                      Filo en <strong className="text-white">{cut.name}</strong>{' '}
+                      ({formatMm(cut.lengthMm)}×{formatMm(cut.depthMm)}mm ×
+                      {cut.quantity}):
+                    </span>
+                    <span className="text-[#ffb59b] font-bold tabular-nums">
+                      {pieceMeters.toFixed(2)} m ({formatARS(pieceFiloCost)})
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {EDGE_SIDES_OPTIONS.map((sides) => {
+                      const active = cut.edgeSidesCount === sides;
+                      return (
+                        <button
+                          key={sides}
+                          type="button"
+                          onClick={() =>
+                            setCuts((prev) =>
+                              updateCutInList(prev, cut.id, {
+                                edgeSidesCount: sides,
+                              })
+                            )
+                          }
+                          className={`py-1 rounded-lg text-[10px] font-extrabold border cursor-pointer transition-all ${
+                            active
+                              ? 'bg-[#e87a50] text-[#121414] border-[#ffb59b] shadow-xs'
+                              : 'bg-[#222424] text-[#c8c6c5] border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {sides === 0
+                            ? '0 Lados'
+                            : sides === 1
+                            ? '1 Lado'
+                            : `${sides} Lados`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Botón para agregar un nuevo corte personalizado a la lista */}
+        <button
+          type="button"
+          onClick={() =>
+            setCuts((prev) => [
+              ...prev,
+              {
+                id: `dc-${Date.now()}`,
+                name: `Corte #${prev.length + 1}`,
+                lengthMm: 400,
+                depthMm: 335,
+                quantity: 1,
+                edgeSidesCount: 2,
+              },
+            ])
+          }
+          className="w-full py-1.5 rounded-xl border border-dashed border-[#e87a50]/60 bg-black/20 hover:bg-black/35 text-[11px] font-bold text-[#ffb59b] flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>+ Agregar otro corte al mueble</span>
+        </button>
+
+        {/* Resumen de Valor Filo ($/Metro) y Totales */}
+        <div className="grid grid-cols-2 gap-2 items-center pt-1 border-t border-white/10">
+          <div>
+            <label className="block text-[10px] font-semibold text-[#c8c6c5] mb-0.5">
+              Valor Filo ($ / Metro)
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={edgePricePerM}
+              onChange={(e) => setEdgePricePerM(e.target.value)}
+              className="w-full bg-[#222424] border border-white/15 rounded-lg px-2.5 py-1 text-xs font-bold text-white tabular-nums"
+            />
+          </div>
+          <div className="bg-[#222424] rounded-xl p-2 border border-white/10 text-[10px] space-y-0.5 tabular-nums">
+            <div className="flex justify-between text-[#c8c6c5]">
+              <span>Cortes ({cuts.length}):</span>
+              <span className="text-white font-bold">
+                {structEdgeM.toFixed(2)} m
+              </span>
+            </div>
+            <div className="flex justify-between text-[#c8c6c5]">
+              <span>Barra Cajones ({drwCount}):</span>
+              <span className="text-white font-bold">
+                {drwEdgeM.toFixed(2)} m
+              </span>
+            </div>
+            <div className="flex justify-between text-[#ffb59b] font-extrabold border-t border-white/10 pt-0.5">
+              <span>Total Filo:</span>
+              <span>{formatARS(totalEdgeCost)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -471,14 +730,14 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
           type="button"
           onClick={() => {
             setNewTitle('');
-            setNewWidthCm('45');
-            setNewHeightCm('55');
-            setNewDepthCm('38');
+            setNewWidthMm('400');
+            setNewHeightMm('550');
+            setNewDepthMm('335');
             setNewPriceArs('85000');
-            setNewStructureEdgeSides(1);
+            setNewStructureCuts(cloneDefaultStructureCuts());
             setNewEdgePricePerM('650');
             setNewDrawerCount(1);
-            setNewDrawersConfig(generateDefaultDrawers(1, 450, 550, 380));
+            setNewDrawersConfig(generateDefaultDrawers(1, 400, 550, 335));
             setNewThumbnailUrl('');
             setNewGeometricError(null);
             setShowNewDesignModal(true);
@@ -504,7 +763,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
         <Search className="w-4 h-4 text-[#a1a1a1] shrink-0" />
         <input
           type="text"
-          placeholder="Buscar mueble por nombre, serie o cota"
+          placeholder="Buscar mueble por nombre, serie o medida en mm"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full bg-transparent text-xs text-white placeholder-[#8e8e8e] focus:outline-none"
@@ -522,37 +781,30 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
 
       {/* Section Header */}
       <div className="flex items-center gap-2 pt-0.5">
-        <h2 className="text-base font-bold font-display text-white">Diseños</h2>
+        <h2 className="text-base font-bold font-display text-white">
+          Diseños (Medidas en mm)
+        </h2>
         <span className="bg-[#222424] border border-white/5 text-[#a1a1a1] text-[11px] font-medium px-2.5 py-0.5 rounded-md tabular-nums">
-          {filteredDesigns.length} items visible
+          {filteredDesigns.length} muebles
         </span>
       </div>
 
       {/* 2-Column Catalog Grid */}
       <div className="grid grid-cols-2 gap-3">
         {filteredDesigns.map((design, idx) => {
-          const safeW = Number(design?.widthMm) || 450;
+          const safeW = Number(design?.widthMm) || 400;
           const safeH = Number(design?.heightMm) || 550;
-          const safeD = Number(design?.depthMm) || 380;
-          const widthCm = Math.round(safeW / 10);
-          const heightCm = Math.round(safeH / 10);
-          const depthCm = Math.round(safeD / 10);
+          const safeD = Number(design?.depthMm) || 335;
           const drwCount =
             design?.drawerCount !== undefined ? Number(design.drawerCount) : 1;
 
-          const structSides = (design?.structureEdgeSidesCount ?? 1) as
-            | 0
-            | 1
-            | 2
-            | 3
-            | 4;
           const edgePriceM = Number(design?.edgePricePerMeterArs) || 650;
-          const structEdgeM = calcCabinetStructureEdgeMeters(
-            safeW,
-            safeH,
-            safeD,
-            structSides
-          );
+          const structCuts =
+            Array.isArray(design?.structureCuts) &&
+            design.structureCuts.length > 0
+              ? design.structureCuts
+              : DEFAULT_CATALOG_STRUCTURE_CUTS;
+          const structEdgeM = calcStructureCutsEdgeMeters(structCuts);
           const drwEdgeM = Array.isArray(design?.drawersConfig)
             ? design.drawersConfig.reduce(
                 (acc, d) => acc + (Number(d?.edgeMeters) || 0),
@@ -725,7 +977,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                 </label>
 
                 <span className="absolute top-1.5 right-1.5 bg-black/70 border border-white/10 text-[#ffb59b] text-[9px] font-bold px-1.5 py-0.5 rounded tabular-nums">
-                  {drwCount} {drwCount === 1 ? 'caj.' : 'caj.'}
+                  {drwCount} caj.
                 </span>
               </div>
 
@@ -734,27 +986,27 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                 {design?.catalogTitle || design?.name || 'Mesa de Luz'}
               </h3>
 
-              {/* Dimension Pills: [Largo] [Alto] [Prof. ✏️] */}
+              {/* Dimension Pills in Millimeters: [L:400mm] [A:550mm] [P:335mm ✏️] */}
               <div className="flex items-center justify-between gap-1 mt-1.5">
                 <span
-                  title="Largo"
-                  className="bg-[#242626] border border-white/10 text-white text-[10px] font-bold px-1.5 py-1 rounded-md tabular-nums"
+                  title="Largo en milímetros"
+                  className="bg-[#242626] border border-white/10 text-white text-[9.5px] font-bold px-1.5 py-1 rounded-md tabular-nums"
                 >
-                  L:{widthCm}cm
+                  L:{formatMm(safeW)}mm
                 </span>
                 <span
-                  title="Alto"
-                  className="bg-[#242626] border border-white/10 text-white text-[10px] font-bold px-1.5 py-1 rounded-md tabular-nums"
+                  title="Alto en milímetros"
+                  className="bg-[#242626] border border-white/10 text-white text-[9.5px] font-bold px-1.5 py-1 rounded-md tabular-nums"
                 >
-                  A:{heightCm}cm
+                  A:{formatMm(safeH)}mm
                 </span>
                 <button
                   type="button"
                   onClick={() => handleOpenEdit(design)}
-                  title="Editar Largo, Alto, Profundidad y Filos"
-                  className="bg-[#242626] hover:bg-[#2c2e2e] border border-white/10 text-white text-[10px] font-bold px-1.5 py-1 rounded-md flex items-center gap-1 cursor-pointer tabular-nums"
+                  title="Editar Largo, Alto, Profundidad (mm) y Filos"
+                  className="bg-[#242626] hover:bg-[#2c2e2e] border border-white/10 text-white text-[9.5px] font-bold px-1.5 py-1 rounded-md flex items-center gap-0.5 cursor-pointer tabular-nums"
                 >
-                  <span>P:{depthCm}cm</span>
+                  <span>P:{formatMm(safeD)}mm</span>
                   <Pencil className="w-2.5 h-2.5 text-[#a1a1a1]" />
                 </button>
               </div>
@@ -763,9 +1015,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
               <div className="mt-1.5 px-2 py-1 rounded-lg bg-[#1e2020] border border-white/5 flex items-center justify-between text-[10px]">
                 <span className="text-[#c8c6c5] flex items-center gap-1 truncate">
                   <Disc className="w-3 h-3 text-[#e87a50] shrink-0" />
-                  <span>
-                    Filo ({structSides}L): {totalEdgeM.toFixed(2)}m
-                  </span>
+                  <span>Filo: {totalEdgeM.toFixed(2)}m</span>
                 </span>
                 <span className="font-bold text-[#ffb59b] tabular-nums shrink-0">
                   {formatARS(totalEdgeCost)}
@@ -815,19 +1065,14 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
         })}
       </div>
 
-      {/* Edit Design Modal with Defensive Guards, Edge Sides Calculation & Drawer Bar (0 al 6) */}
+      {/* Edit Design Modal (100% en milímetros, con cortes por separado y lados de filo por pieza) */}
       {editingDesign &&
         (() => {
-          const wMm = Math.max(150, (parseInt(editWidthCm, 10) || 45) * 10);
-          const hMm = Math.max(150, (parseInt(editHeightCm, 10) || 55) * 10);
-          const dMm = Math.max(150, (parseInt(editDepthCm, 10) || 38) * 10);
+          const wMm = Math.max(50, parseMm(editWidthMm, 400));
+          const hMm = Math.max(50, parseMm(editHeightMm, 550));
+          const dMm = Math.max(50, parseMm(editDepthMm, 335));
           const edgePriceM = Math.max(0, parseInt(editEdgePricePerM, 10) || 650);
-          const structEdgeM = calcCabinetStructureEdgeMeters(
-            wMm,
-            hMm,
-            dMm,
-            editStructureEdgeSides
-          );
+          const structEdgeM = calcStructureCutsEdgeMeters(editStructureCuts);
           const drwEdgeM = editDrawersConfig.reduce(
             (acc, d) => acc + (Number(d?.edgeMeters) || 0),
             0
@@ -838,7 +1083,7 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
           const readiness = getReadinessForDesign(
             editingDesign,
             editDrawerCount,
-            editStructureEdgeSides
+            editStructureCuts
           );
 
           return (
@@ -847,10 +1092,10 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                 <div className="flex items-center justify-between pb-2 border-b border-white/10">
                   <div>
                     <h3 className="text-base font-bold font-display text-white">
-                      Editar Mueble, Filos &amp; Cajones (0 al 6)
+                      Editar Mueble, Cortes &amp; Filos (en mm)
                     </h3>
                     <p className="text-[11px] text-[#c8c6c5]">
-                      Escandallo paramétrico vinculado con Inventario
+                      Todas las medidas en milímetros • Filos por pieza
                     </p>
                   </div>
                   <button
@@ -976,164 +1221,60 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                     </div>
                   </div>
 
-                  {/* Medidas: Largo (cm), Alto (cm), Profundidad (cm) */}
+                  {/* Medidas Generales en MILÍMETROS: Largo (mm), Alto (mm), Profundidad (mm) */}
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                        Largo (cm)
+                        Largo (mm)
                       </label>
                       <input
                         type="number"
-                        value={editWidthCm}
-                        onChange={(e) => {
-                          setEditWidthCm(e.target.value);
-                          const newW =
-                            Math.max(15, parseInt(e.target.value, 10) || 45) *
-                            10;
-                          setEditDrawersConfig(
-                            generateDefaultDrawers(
-                              editDrawerCount,
-                              newW,
-                              hMm,
-                              dMm
-                            )
-                          );
-                        }}
+                        step="0.5"
+                        value={editWidthMm}
+                        onChange={(e) => setEditWidthMm(e.target.value)}
                         className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                        Alto (cm)
+                        Alto (mm)
                       </label>
                       <input
                         type="number"
-                        value={editHeightCm}
-                        onChange={(e) => {
-                          setEditHeightCm(e.target.value);
-                          const newH =
-                            Math.max(15, parseInt(e.target.value, 10) || 55) *
-                            10;
-                          setEditDrawersConfig(
-                            generateDefaultDrawers(
-                              editDrawerCount,
-                              wMm,
-                              newH,
-                              dMm
-                            )
-                          );
-                        }}
+                        step="0.5"
+                        value={editHeightMm}
+                        onChange={(e) => setEditHeightMm(e.target.value)}
                         className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#ffb59b] mb-1">
-                        Profundidad (cm)
+                        Profundidad (mm)
                       </label>
                       <input
                         type="number"
-                        value={editDepthCm}
-                        onChange={(e) => {
-                          setEditDepthCm(e.target.value);
-                          const newD =
-                            Math.max(15, parseInt(e.target.value, 10) || 38) *
-                            10;
-                          setEditDrawersConfig(
-                            generateDefaultDrawers(
-                              editDrawerCount,
-                              wMm,
-                              hMm,
-                              newD
-                            )
-                          );
-                        }}
+                        step="0.5"
+                        value={editDepthMm}
+                        onChange={(e) => setEditDepthMm(e.target.value)}
                         className="w-full bg-[#222424] border border-[#e87a50] rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
                       />
                     </div>
                   </div>
 
-                  {/* SECCIÓN: ELEGIR CUÁNTOS LADOS LLEVAN FILO Y CÁLCULO AUTOMÁTICO */}
-                  <div className="p-3.5 rounded-2xl bg-[#181a1a] border border-[#e87a50]/35 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                        <Disc className="w-4 h-4 text-[#e87a50]" />
-                        <span>Cálculo de Filo (Elegir Lados con Filo)</span>
-                      </div>
-                      <span className="text-xs font-extrabold text-[#ffb59b] tabular-nums">
-                        {totalEdgeM.toFixed(2)} m = {formatARS(totalEdgeCost)}
-                      </span>
-                    </div>
+                  {/* SECCIÓN: CORTES POR SEPARADO CON ELECCIÓN INDIVIDUAL DE LADOS CON FILO */}
+                  {renderStructureCutsFiloEditor(
+                    editStructureCuts,
+                    setEditStructureCuts,
+                    editEdgePricePerM,
+                    setEditEdgePricePerM,
+                    structEdgeM,
+                    drwEdgeM,
+                    editDrawerCount,
+                    totalEdgeM,
+                    totalEdgeCost
+                  )}
 
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-[#c8c6c5] font-semibold">
-                          Lados con filo en piezas de Estructura (Tapa, Piso y 2
-                          Laterales):
-                        </span>
-                        <span className="text-[#ffb59b] font-bold tabular-nums">
-                          {structEdgeM.toFixed(2)} m
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-5 gap-1">
-                        {EDGE_SIDES_OPTIONS.map((sides) => {
-                          const active = editStructureEdgeSides === sides;
-                          return (
-                            <button
-                              key={sides}
-                              type="button"
-                              onClick={() => setEditStructureEdgeSides(sides)}
-                              className={`py-1.5 rounded-lg text-[10px] font-extrabold border cursor-pointer transition-all ${
-                                active
-                                  ? 'bg-[#e87a50] text-[#121414] border-[#ffb59b] shadow-xs'
-                                  : 'bg-[#222424] text-[#c8c6c5] border-white/10 hover:text-white'
-                              }`}
-                            >
-                              {sides === 0
-                                ? '0 Lados'
-                                : sides === 1
-                                ? '1 Lado'
-                                : `${sides} Lados`}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 items-center pt-1">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-[#c8c6c5] mb-0.5">
-                          Valor Filo ($ / Metro)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={editEdgePricePerM}
-                          onChange={(e) => setEditEdgePricePerM(e.target.value)}
-                          className="w-full bg-[#222424] border border-white/15 rounded-lg px-2.5 py-1 text-xs font-bold text-white tabular-nums"
-                        />
-                      </div>
-                      <div className="bg-[#222424] rounded-xl p-2 border border-white/10 text-[10px] space-y-0.5 tabular-nums">
-                        <div className="flex justify-between text-[#c8c6c5]">
-                          <span>Estructura ({editStructureEdgeSides}L):</span>
-                          <span className="text-white font-bold">
-                            {structEdgeM.toFixed(2)} m
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[#c8c6c5]">
-                          <span>Cajones ({editDrawerCount}):</span>
-                          <span className="text-white font-bold">
-                            {drwEdgeM.toFixed(2)} m
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[#ffb59b] font-extrabold border-t border-white/10 pt-0.5">
-                          <span>Total Filo:</span>
-                          <span>{formatARS(totalEdgeCost)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Barra Numérica de Cajones (0 al 6) 100% Editable */}
+                  {/* Barra Numérica de Cajones (0 al 6) 100% Editable en mm con Herrajes desde Inventario */}
                   <DrawerConfiguratorBar
                     drawerCount={editDrawerCount}
                     drawersConfig={editDrawersConfig}
@@ -1178,19 +1319,14 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
           );
         })()}
 
-      {/* New Design Modal with Edge Sides Calculation & Numeric Drawer Bar (0 al 6) */}
+      {/* New Design Modal (100% en milímetros, con los 7 cortes por defecto cargados y editables + filos por pieza) */}
       {showNewDesignModal &&
         (() => {
-          const wMm = Math.max(150, (parseInt(newWidthCm, 10) || 45) * 10);
-          const hMm = Math.max(150, (parseInt(newHeightCm, 10) || 55) * 10);
-          const dMm = Math.max(150, (parseInt(newDepthCm, 10) || 38) * 10);
+          const wMm = Math.max(50, parseMm(newWidthMm, 400));
+          const hMm = Math.max(50, parseMm(newHeightMm, 550));
+          const dMm = Math.max(50, parseMm(newDepthMm, 335));
           const edgePriceM = Math.max(0, parseInt(newEdgePricePerM, 10) || 650);
-          const structEdgeM = calcCabinetStructureEdgeMeters(
-            wMm,
-            hMm,
-            dMm,
-            newStructureEdgeSides
-          );
+          const structEdgeM = calcStructureCutsEdgeMeters(newStructureCuts);
           const drwEdgeM = newDrawersConfig.reduce(
             (acc, d) => acc + (Number(d?.edgeMeters) || 0),
             0
@@ -1202,9 +1338,14 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3.5 overflow-y-auto">
               <div className="atelier-card rounded-2xl max-w-md w-full p-5 space-y-4 border border-white/15 my-auto max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl">
                 <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <h3 className="text-base font-bold font-display text-white">
-                    Nuevo Diseño en Catálogo
-                  </h3>
+                  <div>
+                    <h3 className="text-base font-bold font-display text-white">
+                      Nuevo Diseño en Catálogo (en mm)
+                    </h3>
+                    <p className="text-[11px] text-[#c8c6c5]">
+                      Cortes por defecto cargados • Elegí lados con filo por pieza
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowNewDesignModal(false)}
@@ -1301,164 +1442,60 @@ export const ScreenCatalogo: React.FC<ScreenCatalogoProps> = ({
                     </div>
                   </div>
 
-                  {/* Medidas: Largo (cm), Alto (cm), Profundidad (cm) */}
+                  {/* Medidas Generales en MILÍMETROS: Largo (mm), Alto (mm), Profundidad (mm) */}
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                        Largo (cm)
+                        Largo (mm)
                       </label>
                       <input
                         type="number"
-                        value={newWidthCm}
-                        onChange={(e) => {
-                          setNewWidthCm(e.target.value);
-                          const newW =
-                            Math.max(15, parseInt(e.target.value, 10) || 45) *
-                            10;
-                          setNewDrawersConfig(
-                            generateDefaultDrawers(
-                              newDrawerCount,
-                              newW,
-                              hMm,
-                              dMm
-                            )
-                          );
-                        }}
+                        step="0.5"
+                        value={newWidthMm}
+                        onChange={(e) => setNewWidthMm(e.target.value)}
                         className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                        Alto (cm)
+                        Alto (mm)
                       </label>
                       <input
                         type="number"
-                        value={newHeightCm}
-                        onChange={(e) => {
-                          setNewHeightCm(e.target.value);
-                          const newH =
-                            Math.max(15, parseInt(e.target.value, 10) || 55) *
-                            10;
-                          setNewDrawersConfig(
-                            generateDefaultDrawers(
-                              newDrawerCount,
-                              wMm,
-                              newH,
-                              dMm
-                            )
-                          );
-                        }}
+                        step="0.5"
+                        value={newHeightMm}
+                        onChange={(e) => setNewHeightMm(e.target.value)}
                         className="w-full bg-[#222424] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#ffb59b] mb-1">
-                        Profundidad (cm)
+                        Profundidad (mm)
                       </label>
                       <input
                         type="number"
-                        value={newDepthCm}
-                        onChange={(e) => {
-                          setNewDepthCm(e.target.value);
-                          const newD =
-                            Math.max(15, parseInt(e.target.value, 10) || 38) *
-                            10;
-                          setNewDrawersConfig(
-                            generateDefaultDrawers(
-                              newDrawerCount,
-                              wMm,
-                              hMm,
-                              newD
-                            )
-                          );
-                        }}
+                        step="0.5"
+                        value={newDepthMm}
+                        onChange={(e) => setNewDepthMm(e.target.value)}
                         className="w-full bg-[#222424] border border-[#e87a50] rounded-xl px-3 py-2 text-xs font-bold text-white tabular-nums"
                       />
                     </div>
                   </div>
 
-                  {/* SECCIÓN: ELEGIR CUÁNTOS LADOS LLEVAN FILO Y CÁLCULO AUTOMÁTICO */}
-                  <div className="p-3.5 rounded-2xl bg-[#181a1a] border border-[#e87a50]/35 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                        <Disc className="w-4 h-4 text-[#e87a50]" />
-                        <span>Cálculo de Filo (Elegir Lados con Filo)</span>
-                      </div>
-                      <span className="text-xs font-extrabold text-[#ffb59b] tabular-nums">
-                        {totalEdgeM.toFixed(2)} m = {formatARS(totalEdgeCost)}
-                      </span>
-                    </div>
+                  {/* SECCIÓN: CORTES POR SEPARADO CON ELECCIÓN INDIVIDUAL DE LADOS CON FILO */}
+                  {renderStructureCutsFiloEditor(
+                    newStructureCuts,
+                    setNewStructureCuts,
+                    newEdgePricePerM,
+                    setNewEdgePricePerM,
+                    structEdgeM,
+                    drwEdgeM,
+                    newDrawerCount,
+                    totalEdgeM,
+                    totalEdgeCost
+                  )}
 
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-[#c8c6c5] font-semibold">
-                          Lados con filo en piezas de Estructura (Tapa, Piso y 2
-                          Laterales):
-                        </span>
-                        <span className="text-[#ffb59b] font-bold tabular-nums">
-                          {structEdgeM.toFixed(2)} m
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-5 gap-1">
-                        {EDGE_SIDES_OPTIONS.map((sides) => {
-                          const active = newStructureEdgeSides === sides;
-                          return (
-                            <button
-                              key={sides}
-                              type="button"
-                              onClick={() => setNewStructureEdgeSides(sides)}
-                              className={`py-1.5 rounded-lg text-[10px] font-extrabold border cursor-pointer transition-all ${
-                                active
-                                  ? 'bg-[#e87a50] text-[#121414] border-[#ffb59b] shadow-xs'
-                                  : 'bg-[#222424] text-[#c8c6c5] border-white/10 hover:text-white'
-                              }`}
-                            >
-                              {sides === 0
-                                ? '0 Lados'
-                                : sides === 1
-                                ? '1 Lado'
-                                : `${sides} Lados`}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 items-center pt-1">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-[#c8c6c5] mb-0.5">
-                          Valor Filo ($ / Metro)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={newEdgePricePerM}
-                          onChange={(e) => setNewEdgePricePerM(e.target.value)}
-                          className="w-full bg-[#222424] border border-white/15 rounded-lg px-2.5 py-1 text-xs font-bold text-white tabular-nums"
-                        />
-                      </div>
-                      <div className="bg-[#222424] rounded-xl p-2 border border-white/10 text-[10px] space-y-0.5 tabular-nums">
-                        <div className="flex justify-between text-[#c8c6c5]">
-                          <span>Estructura ({newStructureEdgeSides}L):</span>
-                          <span className="text-white font-bold">
-                            {structEdgeM.toFixed(2)} m
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[#c8c6c5]">
-                          <span>Cajones ({newDrawerCount}):</span>
-                          <span className="text-white font-bold">
-                            {drwEdgeM.toFixed(2)} m
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[#ffb59b] font-extrabold border-t border-white/10 pt-0.5">
-                          <span>Total Filo:</span>
-                          <span>{formatARS(totalEdgeCost)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Barra Numérica de Cajones (0 al 6) 100% Editable */}
+                  {/* Barra Numérica de Cajones (0 al 6) 100% Editable en mm con Herrajes desde Inventario */}
                   <DrawerConfiguratorBar
                     drawerCount={newDrawerCount}
                     drawersConfig={newDrawersConfig}

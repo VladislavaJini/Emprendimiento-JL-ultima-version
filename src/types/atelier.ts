@@ -87,6 +87,23 @@ export interface InventoryItem {
 
 export type OrderStage = 'proceso' | 'terminado' | 'embalado' | 'entregado';
 
+export interface DrawerHardwareAssignment {
+  id: string;
+  inventoryItemId?: string;
+  name: string;
+  quantity: number;
+  unitPriceArs: number;
+}
+
+export interface DesignCutPiece {
+  id: string;
+  name: string;
+  lengthMm: number;
+  depthMm: number;
+  quantity: number;
+  edgeSidesCount: 0 | 1 | 2 | 3 | 4;
+}
+
 export interface DrawerSpec {
   id: string;
   index: number;
@@ -108,20 +125,22 @@ export interface DrawerSpec {
   bottomDepthMm: number;
   bottomQty?: number;
   bottomMaterial?: string;
-  // 3. Filo (Tapacantos)
+  // 3. Filo (Tapacantos) por pieza individual
   edgeSidesCount?: 0 | 1 | 2 | 3 | 4;
   sidesEdgeCount?: 0 | 1 | 2 | 3 | 4;
+  backEdgeCount?: 0 | 1 | 2 | 3 | 4;
   edgeMeters: number;
   edgePricePerMeterArs?: number;
   edgeCostArs?: number;
   edgeType?: string;
-  // 4. Insumos / Herrajes
+  // 4. Insumos / Herrajes elegidos desde el Inventario
   slideType: string;
   slideQty?: number;
   handleType: string;
   handleQty?: number;
   screwType?: string;
   screwsCount: number;
+  customHardware?: DrawerHardwareAssignment[];
 }
 
 export interface WorkshopOrder {
@@ -198,6 +217,7 @@ export interface FurnitureDesign {
   drawersConfig?: DrawerSpec[];
   thumbnailUrl?: string;
   structureEdgeSidesCount?: 0 | 1 | 2 | 3 | 4;
+  structureCuts?: DesignCutPiece[];
   edgePricePerMeterArs?: number;
   totalEdgeMeters?: number;
   totalEdgeCostArs?: number;
