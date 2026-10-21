@@ -300,107 +300,107 @@ export default function App() {
     } catch {}
   }, [isSeniorMode]);
 
-  // State: Guillotina 2D (Melamina 18mm)
+  // State: Guillotina 2D (Melamina 18mm) — Empty by default
   const [boards, setBoards] = useState<MelaminaBoard[]>(() =>
-    getStored('mjl_boards', INITIAL_BOARDS)
+    getStored('mjl_v3_boards', INITIAL_BOARDS)
   );
   const [selectedBoardId, setSelectedBoardId] = useState<string>(() =>
-    getStored('mjl_selected_board_id', 'carvalho-mezzo')
+    getStored('mjl_v3_selected_board_id', '')
   );
   const [cutPieces, setCutPieces] = useState<CutPiece[]>(() =>
-    getStored('mjl_cut_pieces', INITIAL_CUT_PIECES)
+    getStored('mjl_v3_cut_pieces', INITIAL_CUT_PIECES)
   );
   const [predefinedCuts, setPredefinedCuts] = useState<PredefinedCut[]>(() =>
-    getStored('mjl_predefined_cuts', INITIAL_PREDEFINED_CUTS)
+    getStored('mjl_v3_predefined_cuts', INITIAL_PREDEFINED_CUTS)
   );
 
-  // State: Cortes Fondo (Placas de Fondo 3mm / 5.5mm)
+  // State: Cortes Fondo (Placas de Fondo 3mm / 5.5mm) — Empty by default
   const [fondoBoards, setFondoBoards] = useState<MelaminaBoard[]>(() =>
-    getStored('mjl_fondo_boards', INITIAL_FONDO_BOARDS)
+    getStored('mjl_v3_fondo_boards', INITIAL_FONDO_BOARDS)
   );
   const [selectedFondoBoardId, setSelectedFondoBoardId] = useState<string>(() =>
-    getStored('mjl_selected_fondo_board_id', 'fondo-blanco-plus')
+    getStored('mjl_v3_selected_fondo_board_id', '')
   );
   const [fondoCutPieces, setFondoCutPieces] = useState<CutPiece[]>(() =>
-    getStored('mjl_fondo_cut_pieces', INITIAL_FONDO_PIECES)
+    getStored('mjl_v3_fondo_cut_pieces', INITIAL_FONDO_PIECES)
   );
 
-  // State: Calculador de Filo (Tapacantos)
+  // State: Calculador de Filo (Tapacantos) — Empty by default
   const [edgeRolls, setEdgeRolls] = useState<EdgeBandingRoll[]>(() =>
-    getStored('mjl_edge_rolls', INITIAL_EDGE_ROLLS)
+    getStored('mjl_v3_edge_rolls', INITIAL_EDGE_ROLLS)
   );
   const [selectedEdgeRollId, setSelectedEdgeRollId] = useState<string>(() =>
-    getStored('mjl_selected_edge_roll_id', 'filo-carvalho-10m')
+    getStored('mjl_v3_selected_edge_roll_id', '')
   );
   const [edgePieces, setEdgePieces] = useState<EdgeBandingPiece[]>(() =>
-    getStored('mjl_edge_pieces', INITIAL_EDGE_PIECES)
+    getStored('mjl_v3_edge_pieces', INITIAL_EDGE_PIECES)
   );
 
-  // State: Inventario de Taller (Herrajes, Piezas Cortadas, Materiales)
+  // State: Inventario de Taller (Herrajes, Piezas Cortadas, Materiales) — Empty by default
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(() =>
-    getStored('mjl_inventory_items', INITIAL_INVENTORY_ITEMS)
+    getStored('mjl_v3_inventory_items', INITIAL_INVENTORY_ITEMS)
   );
 
-  // State: Operaciones & Pedidos
+  // State: Operaciones & Pedidos — Empty by default
   const [orders, setOrders] = useState<WorkshopOrder[]>(() =>
-    getStored('mjl_orders', INITIAL_ORDERS)
+    getStored('mjl_v3_orders', INITIAL_ORDERS)
   );
   const [selectedFreightOrderId, setSelectedFreightOrderId] = useState<string>(
-    'ped-1084'
+    ''
   );
   const [cashEfectivo, setCashEfectivo] = useState<number>(() =>
-    getStored('mjl_cash_efectivo', 182500)
+    getStored('mjl_v3_cash_efectivo', 0)
   );
   const [cashBancos, setCashBancos] = useState<number>(() =>
-    getStored('mjl_cash_bancos', 501700)
+    getStored('mjl_v3_cash_bancos', 0)
   );
   const [movements, setMovements] = useState<CashMovement[]>(() =>
-    getStored('mjl_cash_movements', INITIAL_CASH_MOVEMENTS)
+    getStored('mjl_v3_cash_movements', INITIAL_CASH_MOVEMENTS)
   );
 
-  // KPI & Gamificación states
+  // KPI & Gamificación states — 0 by default
   const [cobradoMes, setCobradoMes] = useState<number>(() =>
-    getStored('mjl_cobrado_mes', 1840000)
+    getStored('mjl_v3_cobrado_mes', 0)
   );
   const [porPercibir, setPorPercibir] = useState<number>(() =>
-    getStored('mjl_por_percibir', 620000)
+    getStored('mjl_v3_por_percibir', 0)
   );
   const [metaMensual, setMetaMensual] = useState<number>(() =>
-    getStored('mjl_meta_mensual', 2000000)
+    getStored('mjl_v3_meta_mensual', 0)
   );
   const [extraBillingArs, setExtraBillingArs] = useState<number>(() =>
-    getStored('mjl_extra_billing', 0)
+    getStored('mjl_v3_extra_billing', 0)
   );
   const [salesGoalUnits, setSalesGoalUnits] = useState<number>(() =>
-    getStored('mjl_sales_goal_units', 20)
+    getStored('mjl_v3_sales_goal_units', 10)
   );
   const [extraSoldUnits, setExtraSoldUnits] = useState<number>(() =>
-    getStored('mjl_extra_sold_units', 12)
+    getStored('mjl_v3_extra_sold_units', 0)
   );
   const [freightRatePerKm, setFreightRatePerKm] = useState<number>(() =>
-    getStored('mjl_freight_rate_km', 1850)
+    getStored('mjl_v3_freight_rate_km', 0)
   );
   const [preselectedFreightDesignId, setPreselectedFreightDesignId] = useState<
     string | null
   >(null);
 
-  // State: Catálogo & CAD 3D
+  // State: Catálogo — Empty by default
   const [designs, setDesigns] = useState<FurnitureDesign[]>(() =>
-    getStored('mjl_designs', INITIAL_DESIGNS)
+    getStored('mjl_v3_designs', INITIAL_DESIGNS)
   );
   const [activeDesignIndex, setActiveDesignIndex] = useState<number>(0);
 
   // Automatic localStorage sync
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_cut_pieces', JSON.stringify(cutPieces));
+      localStorage.setItem('mjl_v3_cut_pieces', JSON.stringify(cutPieces));
     } catch {}
   }, [cutPieces]);
 
   useEffect(() => {
     try {
       localStorage.setItem(
-        'mjl_predefined_cuts',
+        'mjl_v3_predefined_cuts',
         JSON.stringify(predefinedCuts)
       );
     } catch {}
@@ -408,54 +408,54 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_boards', JSON.stringify(boards));
+      localStorage.setItem('mjl_v3_boards', JSON.stringify(boards));
     } catch {}
   }, [boards]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_selected_board_id', JSON.stringify(selectedBoardId));
+      localStorage.setItem('mjl_v3_selected_board_id', JSON.stringify(selectedBoardId));
     } catch {}
   }, [selectedBoardId]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_fondo_cut_pieces', JSON.stringify(fondoCutPieces));
-      localStorage.setItem('mjl_fondo_boards', JSON.stringify(fondoBoards));
+      localStorage.setItem('mjl_v3_fondo_cut_pieces', JSON.stringify(fondoCutPieces));
+      localStorage.setItem('mjl_v3_fondo_boards', JSON.stringify(fondoBoards));
     } catch {}
   }, [fondoCutPieces, fondoBoards]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_edge_rolls', JSON.stringify(edgeRolls));
-      localStorage.setItem('mjl_edge_pieces', JSON.stringify(edgePieces));
+      localStorage.setItem('mjl_v3_edge_rolls', JSON.stringify(edgeRolls));
+      localStorage.setItem('mjl_v3_edge_pieces', JSON.stringify(edgePieces));
     } catch {}
   }, [edgeRolls, edgePieces]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_inventory_items', JSON.stringify(inventoryItems));
+      localStorage.setItem('mjl_v3_inventory_items', JSON.stringify(inventoryItems));
     } catch {}
   }, [inventoryItems]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_orders', JSON.stringify(orders));
+      localStorage.setItem('mjl_v3_orders', JSON.stringify(orders));
     } catch {}
   }, [orders]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_cash_efectivo', JSON.stringify(cashEfectivo));
-      localStorage.setItem('mjl_cash_bancos', JSON.stringify(cashBancos));
-      localStorage.setItem('mjl_cash_movements', JSON.stringify(movements));
-      localStorage.setItem('mjl_cobrado_mes', JSON.stringify(cobradoMes));
-      localStorage.setItem('mjl_por_percibir', JSON.stringify(porPercibir));
-      localStorage.setItem('mjl_meta_mensual', JSON.stringify(metaMensual));
-      localStorage.setItem('mjl_extra_billing', JSON.stringify(extraBillingArs));
-      localStorage.setItem('mjl_sales_goal_units', JSON.stringify(salesGoalUnits));
-      localStorage.setItem('mjl_extra_sold_units', JSON.stringify(extraSoldUnits));
-      localStorage.setItem('mjl_freight_rate_km', JSON.stringify(freightRatePerKm));
+      localStorage.setItem('mjl_v3_cash_efectivo', JSON.stringify(cashEfectivo));
+      localStorage.setItem('mjl_v3_cash_bancos', JSON.stringify(cashBancos));
+      localStorage.setItem('mjl_v3_cash_movements', JSON.stringify(movements));
+      localStorage.setItem('mjl_v3_cobrado_mes', JSON.stringify(cobradoMes));
+      localStorage.setItem('mjl_v3_por_percibir', JSON.stringify(porPercibir));
+      localStorage.setItem('mjl_v3_meta_mensual', JSON.stringify(metaMensual));
+      localStorage.setItem('mjl_v3_extra_billing', JSON.stringify(extraBillingArs));
+      localStorage.setItem('mjl_v3_sales_goal_units', JSON.stringify(salesGoalUnits));
+      localStorage.setItem('mjl_v3_extra_sold_units', JSON.stringify(extraSoldUnits));
+      localStorage.setItem('mjl_v3_freight_rate_km', JSON.stringify(freightRatePerKm));
     } catch {}
   }, [
     cashEfectivo,
@@ -472,7 +472,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('mjl_designs', JSON.stringify(designs));
+      localStorage.setItem('mjl_v3_designs', JSON.stringify(designs));
     } catch {}
   }, [designs]);
 
@@ -485,6 +485,10 @@ export default function App() {
 
     const unsubscribe = subscribeToWorkshopState(
       (cloudData) => {
+        // Only apply remote state if it has the clean v3 schema flag (preventing old pre-populated demo data from overwriting empty defaults)
+        if (!cloudData || cloudData.schemaVersion !== 'v3_clean') {
+          return;
+        }
         isApplyingRemoteRef.current = true;
         if (cloudData.boards && Array.isArray(cloudData.boards)) {
           setBoards(cloudData.boards);
@@ -564,6 +568,7 @@ export default function App() {
     if (isApplyingRemoteRef.current) return;
     const timer = setTimeout(() => {
       saveDocToCloud('workshop_state', 'current', {
+        schemaVersion: 'v3_clean',
         boards,
         fondoBoards,
         fondoCutPieces,
@@ -646,6 +651,27 @@ export default function App() {
     setBoards((prev) =>
       prev.map((b) => (b.id === boardId ? { ...b, costArs: newCost } : b))
     );
+  };
+
+  const handleAddBoard = (newBoard: MelaminaBoard) => {
+    setBoards((prev) => [...prev, newBoard]);
+  };
+
+  const handleUpdateBoard = (boardId: string, updated: Partial<MelaminaBoard>) => {
+    setBoards((prev) =>
+      prev.map((b) => (b.id === boardId ? { ...b, ...updated } : b))
+    );
+  };
+
+  const handleDeleteBoard = (boardId: string) => {
+    setBoards((prev) => {
+      const next = prev.filter((b) => b.id !== boardId);
+      if (selectedBoardId === boardId) {
+        setSelectedBoardId(next[0]?.id || '');
+      }
+      return next;
+    });
+    showToast('Placa eliminada');
   };
 
   const handleUpdatePieceQty = (pieceId: string, delta: number) => {
@@ -825,14 +851,10 @@ export default function App() {
   };
 
   const handleDeleteEdgeRoll = (id: string) => {
-    if (edgeRolls.length <= 1) {
-      showToast('Debe permanecer al menos 1 rollo de filo cargado');
-      return;
-    }
     setEdgeRolls((prev) => {
       const next = prev.filter((r) => r.id !== id);
-      if (selectedEdgeRollId === id && next[0]) {
-        setSelectedEdgeRollId(next[0].id);
+      if (selectedEdgeRollId === id) {
+        setSelectedEdgeRollId(next[0]?.id || '');
       }
       return next;
     });
@@ -1572,6 +1594,10 @@ export default function App() {
           {activeScreen === 'presupuesto' && (
             <ScreenPresupuesto
               onBack={() => setActiveScreen('inicio')}
+              boards={boards}
+              edgeRolls={edgeRolls}
+              inventoryItems={inventoryItems}
+              onSendPiecesToGuillotine={handleLoadMissingPiecesToCutter}
               onShowToast={showToast}
             />
           )}
@@ -1603,6 +1629,9 @@ export default function App() {
               selectedBoardId={selectedBoardId}
               onSelectBoard={setSelectedBoardId}
               onUpdateBoardCost={handleUpdateBoardCost}
+              onAddBoard={handleAddBoard}
+              onUpdateBoard={handleUpdateBoard}
+              onDeleteBoard={handleDeleteBoard}
               cutPieces={cutPieces}
               onUpdatePieceQty={handleUpdatePieceQty}
               onUpdatePieceDetails={handleUpdatePieceDetails}

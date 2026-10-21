@@ -38,6 +38,9 @@ interface ScreenGuillotina2DProps {
   selectedBoardId: string;
   onSelectBoard: (id: string) => void;
   onUpdateBoardCost: (id: string, newCost: number) => void;
+  onAddBoard?: (board: MelaminaBoard) => void;
+  onUpdateBoard?: (id: string, updated: Partial<MelaminaBoard>) => void;
+  onDeleteBoard?: (id: string) => void;
   cutPieces: CutPiece[];
   onUpdatePieceQty: (id: string, delta: number) => void;
   onUpdatePieceDetails?: (id: string, updated: Partial<CutPiece>) => void;
@@ -61,11 +64,25 @@ interface ScreenGuillotina2DProps {
   onShowToast: (msg: string) => void;
 }
 
+const FALLBACK_MELAMINA_BOARD: MelaminaBoard = {
+  id: 'board-empty',
+  name: 'Placa Base (Sin cargar)',
+  brandSpec: 'Tocá el lápiz o + Placa para configurar',
+  widthMm: 2750,
+  heightMm: 1830,
+  costArs: 0,
+  swatchColor: '#c99768',
+  grainType: 'horizontal',
+};
+
 export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   boards,
   selectedBoardId,
   onSelectBoard,
   onUpdateBoardCost,
+  onAddBoard,
+  onUpdateBoard,
+  onDeleteBoard,
   cutPieces,
   onUpdatePieceQty,
   onUpdatePieceDetails,
@@ -82,6 +99,14 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   onShowToast,
 }) => {
   const [kerfMm, setKerfMm] = useState<number>(3.2);
+  const [showBoardModal, setShowBoardModal] = useState<boolean>(false);
+  const [editingBoardMode, setEditingBoardMode] = useState<'add' | 'edit'>('add');
+  const [boardFormName, setBoardFormName] = useState('');
+  const [boardFormSpec, setBoardFormSpec] = useState('Melamina 18mm');
+  const [boardFormW, setBoardFormW] = useState('2750');
+  const [boardFormH, setBoardFormH] = useState('1830');
+  const [boardFormCost, setBoardFormCost] = useState('');
+  const [boardFormColor, setBoardFormColor] = useState('#c99768');
   const [showBoardMenu, setShowBoardMenu] = useState(false);
   const [editingCost, setEditingCost] = useState(false);
   const [costInput, setCostInput] = useState('');
@@ -104,7 +129,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   const [presetName, setPresetName] = useState('');
   const [presetW, setPresetW] = useState('600');
   const [presetH, setPresetH] = useState('400');
-  const [presetEdges, setPresetEdges] = useState<'4L' | '2L' | '1L' | '0L'>('2L');
+  const [presetEdges, setPresetEdges] = useState<'4L' | '3L' | '2L' | '1L' | '0L'>('2L');
   const [presetAllowRot, setPresetAllowRot] = useState<boolean>(true);
 
   // Cut modal fields (used for both Add and Edit)
@@ -114,11 +139,14 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   const [cutH, setCutH] = useState('400');
   const [cutQty, setCutQty] = useState('2');
   const [cutCustomPrice, setCutCustomPrice] = useState<string>('');
-  const [cutEdges, setCutEdges] = useState<'4L' | '2L' | '1L' | '0L'>('2L');
+  const [cutEdges, setCutEdges] = useState<'4L' | '3L' | '2L' | '1L' | '0L'>('2L');
   const [cutAllowRotation, setCutAllowRotation] = useState<boolean>(true);
   const [saveAlsoAsPreset, setSaveAlsoAsPreset] = useState<boolean>(false);
 
-  const activeBoard = boards.find((b) => b.id === selectedBoardId) || boards[0];
+  const activeBoard: MelaminaBoard =
+    boards.find((b) => b.id === selectedBoardId) ||
+    boards[0] ||
+    FALLBACK_MELAMINA_BOARD;
 
   // 2D Guillotine & Multi-Board Nesting calculation
   const nestingResult = useMemo(() => {
@@ -139,11 +167,15 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   const activeNestingBoard: BoardNestingResult =
     nestingResult.boards[activeBoardIndex] || nestingResult.boards[0];
 
-  // Compute metrics dynamically
-  const boardAreaM2 = Number(
-    ((activeBoard.widthMm * activeBoard.heightMm) / 1_000_000).toFixed(2)
-  );
-  const costPerM2 = Math.round(activeBoard.costArs / Math.max(0.1, boardAreaM2));
+  // Compute metrics dynamically & exact proportional cut cost
+  const boardAreaMm2 = Math.max(1, activeBoard.widthMm * activeBoard.heightMm);
+  const boardAreaM2 = Number((boardAreaMm2 / 1_000_000).toFixed(2));
+  const costPerM2 = Math.round(activeBoard.costArs / Math.max(0.01, boardAreaMm2 / 1_000_000));
+
+  const calcExactCutUnitPrice = (wMm: number, hMm: number): number => {
+    if (activeBoard.costArs <= 0) return 0;
+    return Math.round(((wMm * hMm) / boardAreaMm2) * activeBoard.costArs);
+  };
 
   const totalPiecesCount = nestingResult.totalPiecesRequested;
   const totalBoardsCount = nestingResult.totalBoardsRequired;
@@ -157,7 +189,10 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
   const cutValueArs =
     cutPieces.length === 0
       ? 0
-      : Math.round((efficiencyPct / 100) * (activeBoard.costArs * totalBoardsCount));
+      : cutPieces.reduce(
+          (sum, p) => sum + calcExactCutUnitPrice(p.widthMm, p.heightMm) * p.quantity,
+          0
+        );
 
   const visiblePieces = showAllCuts ? cutPieces : cutPieces.slice(0, 4);
 
@@ -225,11 +260,87 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
 
   const handleSaveBoardCost = () => {
     const parsed = parseInt(costInput.replace(/\D/g, ''), 10);
-    if (!isNaN(parsed) && parsed > 1000) {
-      onUpdateBoardCost(activeBoard.id, parsed);
+    if (!isNaN(parsed) && parsed >= 0) {
+      if (boards.length === 0 && onAddBoard) {
+        const newB: MelaminaBoard = {
+          id: `board-${Date.now()}`,
+          name: 'Placa Melamina 18mm',
+          brandSpec: 'Melamina 18mm',
+          widthMm: 2750,
+          heightMm: 1830,
+          costArs: parsed,
+          swatchColor: '#c99768',
+          grainType: 'horizontal',
+        };
+        onAddBoard(newB);
+        onSelectBoard(newB.id);
+      } else {
+        onUpdateBoardCost(activeBoard.id, parsed);
+      }
       onShowToast(`Costo de placa actualizado a ${formatARS(parsed)}`);
     }
     setEditingCost(false);
+  };
+
+  const openAddBoardModal = () => {
+    setEditingBoardMode('add');
+    setBoardFormName('');
+    setBoardFormSpec('Melamina 18mm');
+    setBoardFormW('2750');
+    setBoardFormH('1830');
+    setBoardFormCost('');
+    setBoardFormColor('#c99768');
+    setShowBoardModal(true);
+  };
+
+  const openEditBoardModal = () => {
+    setEditingBoardMode(boards.length === 0 ? 'add' : 'edit');
+    setBoardFormName(boards.length === 0 ? '' : activeBoard.name);
+    setBoardFormSpec(activeBoard.brandSpec || 'Melamina 18mm');
+    setBoardFormW(String(activeBoard.widthMm));
+    setBoardFormH(String(activeBoard.heightMm));
+    setBoardFormCost(String(activeBoard.costArs || ''));
+    setBoardFormColor(activeBoard.swatchColor || '#c99768');
+    setShowBoardModal(true);
+  };
+
+  const handleSaveBoardModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const w = Math.max(200, parseInt(boardFormW, 10) || 2750);
+    const h = Math.max(200, parseInt(boardFormH, 10) || 1830);
+    const cost = Math.max(0, parseInt(boardFormCost.replace(/\D/g, ''), 10) || 0);
+    const nameClean = boardFormName.trim() || 'Placa Melamina';
+
+    if (editingBoardMode === 'add' || boards.length === 0) {
+      const created: MelaminaBoard = {
+        id: `board-${Date.now()}`,
+        name: nameClean,
+        brandSpec: boardFormSpec.trim() || 'Melamina 18mm',
+        widthMm: w,
+        heightMm: h,
+        costArs: cost,
+        swatchColor: boardFormColor,
+        grainType: 'horizontal',
+      };
+      if (onAddBoard) onAddBoard(created);
+      onSelectBoard(created.id);
+      onShowToast(`Placa creada: ${created.name} (${formatARS(cost)})`);
+    } else {
+      if (onUpdateBoard) {
+        onUpdateBoard(activeBoard.id, {
+          name: nameClean,
+          brandSpec: boardFormSpec.trim() || 'Melamina 18mm',
+          widthMm: w,
+          heightMm: h,
+          costArs: cost,
+          swatchColor: boardFormColor,
+        });
+      } else {
+        onUpdateBoardCost(activeBoard.id, cost);
+      }
+      onShowToast(`Placa actualizada: ${nameClean} (${formatARS(cost)})`);
+    }
+    setShowBoardModal(false);
   };
 
   const openAddModal = () => {
@@ -239,7 +350,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     setCutW('600');
     setCutH('400');
     setCutQty('1');
-    const defaultPrice = Math.round(((600 * 400) / 1_000_000) * costPerM2 * 1.15);
+    const defaultPrice = calcExactCutUnitPrice(600, 400);
     setCutCustomPrice(String(defaultPrice));
     setCutEdges('0L');
     setCutAllowRotation(true);
@@ -254,10 +365,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     setCutW(String(p.widthMm));
     setCutH(String(p.heightMm));
     setCutQty(String(p.quantity));
-    const calcPrice =
-      p.unitPriceArs && p.unitPriceArs > 0
-        ? p.unitPriceArs
-        : Math.round(((p.widthMm * p.heightMm) / 1_000_000) * costPerM2 * 1.15);
+    const calcPrice = calcExactCutUnitPrice(p.widthMm, p.heightMm);
     setCutCustomPrice(String(calcPrice));
     setCutEdges(p.edgesType);
     setCutAllowRotation(p.allowRotation);
@@ -275,8 +383,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
 
   // Add piece directly from a predefined cut
   const handleAddFromPreset = (preset: PredefinedCut, qty: number = 1) => {
-    const area = (preset.widthMm * preset.heightMm) / 1_000_000;
-    const price = Math.round(area * costPerM2 * 1.15);
+    const price = calcExactCutUnitPrice(preset.widthMm, preset.heightMm);
 
     onAddCutPiece({
       name: preset.name,
@@ -321,9 +428,10 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     const w = Math.max(50, Math.min(2750, parseInt(presetW, 10) || 600));
     const h = Math.max(50, Math.min(1830, parseInt(presetH, 10) || 400));
     const edgesLabelMap = {
-      '4L': 'Cantos 4L (2mm ABS)',
-      '2L': 'Cantos 2L Frontal',
-      '1L': 'Cantos 1L Frente',
+      '4L': '4 Lados con filo',
+      '3L': '3 Lados con filo',
+      '2L': '2 Lados con filo',
+      '1L': '1 Lado con filo',
       '0L': 'Sin Tapacantos',
     };
 
@@ -358,15 +466,13 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
     const w = Math.max(50, Math.min(2750, parseInt(cutW, 10) || 600));
     const h = Math.max(50, Math.min(1830, parseInt(cutH, 10) || 400));
     const q = Math.max(1, Math.min(50, parseInt(cutQty, 10) || 1));
-    const area = (w * h) / 1_000_000;
-    const autoPrice = Math.round(area * costPerM2 * 1.15);
-    const parsedCustom = parseInt(cutCustomPrice.replace(/\D/g, ''), 10);
-    const price = !isNaN(parsedCustom) && parsedCustom > 0 ? parsedCustom : autoPrice;
+    const price = calcExactCutUnitPrice(w, h);
 
     const edgesLabelMap = {
-      '4L': 'Cantos 4L (2mm ABS)',
-      '2L': 'Cantos 2L Frontal',
-      '1L': 'Cantos 1L Frente',
+      '4L': '4 Lados con filo',
+      '3L': '3 Lados con filo',
+      '2L': '2 Lados con filo',
+      '1L': '1 Lado con filo',
       '0L': 'Sin Tapacantos',
     };
 
@@ -468,41 +574,52 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                   CONFIGURACIÓN DE HOJA
                 </span>
               </div>
-              <span className="text-xs font-semibold text-[#c8c6c5]">
-                Melamina 18mm
-              </span>
+              <button
+                type="button"
+                onClick={openAddBoardModal}
+                className="text-[10px] font-bold text-[#121414] bg-[#e87a50] hover:bg-[#f0855c] px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3 h-3 stroke-[2.5]" />
+                <span>Nueva Placa</span>
+              </button>
             </div>
 
             {/* Active Board Selector Strip */}
             <div className="relative mb-3.5">
               <div className="bg-[#222424] rounded-xl p-3 flex items-center justify-between border border-white/5">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <div
                     className="w-10 h-10 rounded-lg shadow-inner shrink-0 border border-white/10"
                     style={{ backgroundColor: activeBoard.swatchColor }}
                   />
-                  <div>
-                    <h3 className="font-bold text-sm text-white">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm text-white truncate">
                       {activeBoard.name}
                     </h3>
-                    <p className="text-xs text-[#a1a1a1]">{activeBoard.brandSpec}</p>
+                    <p className="text-xs text-[#a1a1a1] truncate">{activeBoard.brandSpec}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 text-[#c8c6c5] shrink-0">
                   <button
-                    onClick={() => {
-                      setCostInput(String(activeBoard.costArs));
-                      setEditingCost(true);
-                    }}
-                    title="Editar costo de placa"
+                    onClick={openEditBoardModal}
+                    title="Editar nombre, medidas y costo de placa"
                     className="p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
+                  {boards.length > 0 && onDeleteBoard && (
+                    <button
+                      onClick={() => onDeleteBoard(activeBoard.id)}
+                      title="Eliminar placa"
+                      className="p-1.5 hover:bg-red-950/60 text-red-300 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowBoardMenu((prev) => !prev)}
-                    title="Cambiar color o textura de placa"
+                    title="Cambiar placa de melamina"
                     className="p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                   >
                     <ChevronDown className="w-4 h-4" />
@@ -1074,14 +1191,10 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                   <span className="text-sm font-extrabold text-[#ffb59b] tabular-nums">
                     {formatARS(
                       cutPieces.reduce((sum, p) => {
-                        const unitVal =
-                          p.unitPriceArs && p.unitPriceArs > 0
-                            ? p.unitPriceArs
-                            : Math.round(
-                                ((p.widthMm * p.heightMm) / 1_000_000) *
-                                  costPerM2 *
-                                  1.15
-                              );
+                        const unitVal = calcExactCutUnitPrice(
+                          p.widthMm,
+                          p.heightMm
+                        );
                         return sum + unitVal * p.quantity;
                       }, 0)
                     )}
@@ -1090,14 +1203,10 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
 
                 {visiblePieces.map((piece, idx) => {
                   const isFirst = idx === 0;
-                  const unitCutPriceArs =
-                    piece.unitPriceArs && piece.unitPriceArs > 0
-                      ? piece.unitPriceArs
-                      : Math.round(
-                          ((piece.widthMm * piece.heightMm) / 1_000_000) *
-                            costPerM2 *
-                            1.15
-                        );
+                  const unitCutPriceArs = calcExactCutUnitPrice(
+                    piece.widthMm,
+                    piece.heightMm
+                  );
                   const totalCutPriceArs = unitCutPriceArs * piece.quantity;
                   const cleanSubtitle = (piece.subtitle || 'Módulo Taller J&L')
                     .replace(/\s*•\s*Cantos.*$/i, '')
@@ -1392,7 +1501,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                    Ancho (mm)
+                    Profundidad (mm)
                   </label>
                   <input
                     type="number"
@@ -1573,7 +1682,7 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
-                    Ancho (mm)
+                    Profundidad (mm)
                   </label>
                   <input
                     type="number"
@@ -1796,6 +1905,128 @@ export const ScreenGuillotina2D: React.FC<ScreenGuillotina2DProps> = ({
                 <span>Confirmar e Impactar Stock</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CREAR / EDITAR PLACA DE MELAMINA */}
+      {showBoardModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="atelier-card rounded-2xl max-w-sm w-full p-5 space-y-4 border border-white/15">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold font-display text-white">
+                {editingBoardMode === 'add' ? 'Nueva Placa de Melamina' : 'Editar Placa de Melamina'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowBoardModal(false)}
+                className="p-1 text-[#a1a1a1] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBoardModal} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Nombre de la Placa
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Carvalho Mezzo 18mm"
+                  value={boardFormName}
+                  onChange={(e) => setBoardFormName(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/15 rounded-xl px-3.5 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                  Especificación / Marca
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Faplac 18mm 1ra Calidad"
+                  value={boardFormSpec}
+                  onChange={(e) => setBoardFormSpec(e.target.value)}
+                  className="w-full bg-[#222424] border border-white/15 rounded-xl px-3.5 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                    Largo (mm)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="200"
+                    value={boardFormW}
+                    onChange={(e) => setBoardFormW(e.target.value)}
+                    className="w-full bg-[#222424] border border-white/15 rounded-xl px-3 py-2 text-xs text-white tabular-nums"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                    Profundidad (mm)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="200"
+                    value={boardFormH}
+                    onChange={(e) => setBoardFormH(e.target.value)}
+                    className="w-full bg-[#222424] border border-white/15 rounded-xl px-3 py-2 text-xs text-white tabular-nums"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-2.5 items-end">
+                <div className="col-span-9">
+                  <label className="block text-xs font-semibold text-[#c8c6c5] mb-1">
+                    Valor de la Placa (ARS)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    placeholder="Ej. 104000"
+                    value={boardFormCost}
+                    onChange={(e) => setBoardFormCost(e.target.value)}
+                    className="w-full bg-[#222424] border border-white/15 rounded-xl px-3 py-2 text-xs text-white tabular-nums"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <label className="block text-[10px] font-semibold text-[#c8c6c5] mb-1">
+                    Color
+                  </label>
+                  <input
+                    type="color"
+                    value={boardFormColor}
+                    onChange={(e) => setBoardFormColor(e.target.value)}
+                    className="w-full h-9 rounded-xl bg-[#222424] border border-white/15 p-0.5 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBoardModal(false)}
+                  className="px-4 py-2 rounded-xl bg-[#222424] text-xs font-semibold text-[#c8c6c5] cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#e87a50] text-[#121414] text-xs font-bold cursor-pointer"
+                >
+                  Guardar Placa
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

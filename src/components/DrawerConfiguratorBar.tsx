@@ -21,7 +21,10 @@ import {
   getMaxDrawersAllowed,
   generateDefaultDrawers,
   validateDrawersFit,
+  calcDrawerEdgeMeters,
+  calcPieceEdgeMetersBySides,
 } from '../utils/drawerEngine';
+import { formatARS } from '../data/initialData';
 
 interface DrawerConfiguratorBarProps {
   drawerCount: number;
@@ -29,6 +32,7 @@ interface DrawerConfiguratorBarProps {
   cabinetWidthMm: number;
   cabinetHeightMm: number;
   cabinetDepthMm: number;
+  edgePricePerMeterArs?: number;
   inventoryItems?: InventoryItem[];
   cutPieces?: CutPiece[];
   predefinedCuts?: PredefinedCut[];
@@ -36,6 +40,7 @@ interface DrawerConfiguratorBarProps {
 }
 
 const DRAWER_BUTTON_NUMBERS = [0, 1, 2, 3, 4, 5, 6];
+const EDGE_SIDES_BUTTONS: (0 | 1 | 2 | 3 | 4)[] = [0, 1, 2, 3, 4];
 
 export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
   drawerCount,
@@ -43,6 +48,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
   cabinetWidthMm,
   cabinetHeightMm,
   cabinetDepthMm,
+  edgePricePerMeterArs = 650,
   inventoryItems = [],
   cutPieces = [],
   predefinedCuts = [],
@@ -75,7 +81,15 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
       return;
     }
     setErrorMessage(null);
-    const nextConfig = generateDefaultDrawers(num, safeW, safeH, safeD);
+    const nextConfig = generateDefaultDrawers(num, safeW, safeH, safeD).map(
+      (d) => ({
+        ...d,
+        edgePricePerMeterArs: edgePricePerMeterArs || 650,
+        edgeCostArs: Math.round(
+          d.edgeMeters * (Number(edgePricePerMeterArs) || 650)
+        ),
+      })
+    );
     if (activeDrawerTab >= num) {
       setActiveDrawerTab(Math.max(0, num - 1));
     }
@@ -84,11 +98,25 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
 
   const handleUpdateDrawerField = (
     idx: number,
-    updates: Partial<DrawerSpec>
+    updates: Partial<DrawerSpec>,
+    recalculateEdge = true
   ) => {
     const safeList = Array.isArray(drawersConfig) ? [...drawersConfig] : [];
     if (!safeList[idx]) return;
-    safeList[idx] = { ...safeList[idx], ...updates };
+    const merged: DrawerSpec = { ...safeList[idx], ...updates };
+
+    if (recalculateEdge) {
+      const autoMeters = calcDrawerEdgeMeters(merged);
+      const pricePerM =
+        Number(merged.edgePricePerMeterArs) ||
+        Number(edgePricePerMeterArs) ||
+        650;
+      merged.edgeMeters = autoMeters;
+      merged.edgePricePerMeterArs = pricePerM;
+      merged.edgeCostArs = Math.round(autoMeters * pricePerM);
+    }
+
+    safeList[idx] = merged;
 
     const check = validateDrawersFit(safeList, safeH);
     if (!check.valid) {
@@ -116,9 +144,13 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
             <span>Barra de Cajones (0 al 6)</span>
           </div>
           <div className="text-[10.5px] text-[#c8c6c5] mt-0.5">
-            Cota mesa: <strong className="text-white">{safeW}×{safeH}×{safeD} mm</strong> • Vano útil:{' '}
-            <strong className="text-[#ffb59b]">{internalHeight} mm</strong> (Máx:{' '}
-            {maxDrawers})
+            Cota mesa:{' '}
+            <strong className="text-white">
+              {safeW}×{safeH}×{safeD} mm
+            </strong>{' '}
+            • Vano útil:{' '}
+            <strong className="text-[#ffb59b]">{internalHeight} mm</strong>{' '}
+            (Máx: {maxDrawers})
           </div>
         </div>
 
@@ -193,7 +225,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                       : 'bg-[#222424] text-[#a1a1a1] hover:text-white'
                   }`}
                 >
-                  Cajón #{idx + 1} ({d.frontHeightMm}mm)
+                  Cajón #{idx + 1} ({d.frontHeightMm}mm • {d.edgeMeters}m filo)
                 </button>
               ))}
             </div>
@@ -202,7 +234,8 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
           <div className="p-3 rounded-xl bg-[#141616] border border-white/10 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-[#ffb59b]">
-                Configuración a Medida • Cajón #{ (currentDrawer.index || activeDrawerTab + 1) }
+                Configuración a Medida • Cajón #
+                {currentDrawer.index || activeDrawerTab + 1}
               </span>
               <span className="text-[10px] text-[#a1a1a1]">100% Editable</span>
             </div>
@@ -211,7 +244,9 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
             <div className="space-y-2 pt-1">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-white">
                 <Ruler className="w-3.5 h-3.5 text-[#e87a50]" />
-                <span>1. Maderas del Cajón (Frente, Laterales y Contrafrente)</span>
+                <span>
+                  1. Maderas del Cajón (Frente, Laterales y Contrafrente)
+                </span>
               </div>
 
               {/* Quick Wood Cut Selector from Inventory / Cutter */}
@@ -225,15 +260,23 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                     const val = e.target.value;
                     if (!val) return;
                     if (val.startsWith('inv-')) {
-                      const found = woodInventoryOptions.find((i) => i.id === val);
+                      const found = woodInventoryOptions.find(
+                        (i) => i.id === val
+                      );
                       if (found) {
-                        const dims = found.subtitle.match(/(\d+)\s*[×x]\s*(\d+)/);
+                        const dims = found.subtitle.match(
+                          /(\d+)\s*[×x]\s*(\d+)/
+                        );
                         handleUpdateDrawerField(activeDrawerTab, {
                           frontPieceName: found.name,
                           ...(dims
                             ? {
-                                frontWidthMm: parseInt(dims[1], 10) || currentDrawer.frontWidthMm,
-                                frontHeightMm: parseInt(dims[2], 10) || currentDrawer.frontHeightMm,
+                                frontWidthMm:
+                                  parseInt(dims[1], 10) ||
+                                  currentDrawer.frontWidthMm,
+                                frontHeightMm:
+                                  parseInt(dims[2], 10) ||
+                                  currentDrawer.frontHeightMm,
                               }
                             : {}),
                         });
@@ -297,7 +340,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] text-[#c8c6c5] mb-0.5">
-                    Frente Ancho (mm)
+                    Frente Largo (mm)
                   </label>
                   <input
                     type="number"
@@ -312,7 +355,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                 </div>
                 <div>
                   <label className="block text-[10px] text-[#ffb59b] mb-0.5">
-                    Frente Alto (mm)
+                    Frente Prof./Alto (mm)
                   </label>
                   <input
                     type="number"
@@ -335,7 +378,10 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                     value={currentDrawer.frontQty ?? 1}
                     onChange={(e) =>
                       handleUpdateDrawerField(activeDrawerTab, {
-                        frontQty: Math.max(1, parseInt(e.target.value, 10) || 1),
+                        frontQty: Math.max(
+                          1,
+                          parseInt(e.target.value, 10) || 1
+                        ),
                       })
                     }
                     className="w-full bg-[#222424] border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white tabular-nums"
@@ -347,7 +393,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] text-[#c8c6c5] mb-0.5">
-                    Lateral Prof. (mm)
+                    Lateral Profundidad (mm)
                   </label>
                   <input
                     type="number"
@@ -378,7 +424,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                 </div>
                 <div>
                   <label className="block text-[10px] text-[#c8c6c5] mb-0.5">
-                    Contrafrente (mm)
+                    Contrafrente Largo (mm)
                   </label>
                   <input
                     type="number"
@@ -403,7 +449,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] text-[#c8c6c5] mb-0.5">
-                    Ancho Fondo (mm)
+                    Largo Fondo (mm)
                   </label>
                   <input
                     type="number"
@@ -418,7 +464,7 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                 </div>
                 <div>
                   <label className="block text-[10px] text-[#c8c6c5] mb-0.5">
-                    Prof. Fondo (mm)
+                    Profundidad Fondo (mm)
                   </label>
                   <input
                     type="number"
@@ -441,7 +487,10 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                     value={currentDrawer.bottomQty ?? 1}
                     onChange={(e) =>
                       handleUpdateDrawerField(activeDrawerTab, {
-                        bottomQty: Math.max(1, parseInt(e.target.value, 10) || 1),
+                        bottomQty: Math.max(
+                          1,
+                          parseInt(e.target.value, 10) || 1
+                        ),
                       })
                     }
                     className="w-full bg-[#222424] border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white tabular-nums"
@@ -450,12 +499,144 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
               </div>
             </div>
 
-            {/* 3. FILO / TAPACANTOS */}
-            <div className="space-y-2 pt-2 border-t border-white/5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-white">
-                <Disc className="w-3.5 h-3.5 text-[#e87a50]" />
-                <span>3. Filo (Tapacantos del Cajón)</span>
+            {/* 3. FILO / TAPACANTOS CON SELECTOR DE LADOS (0, 1, 2, 3 o 4 Lados) */}
+            <div className="space-y-2.5 pt-2 border-t border-white/5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-white">
+                  <Disc className="w-3.5 h-3.5 text-[#e87a50]" />
+                  <span>3. Filo del Cajón (Elegir Lados con Filo)</span>
+                </div>
+                <span className="text-[10px] font-extrabold text-[#ffb59b] tabular-nums">
+                  {currentDrawer.edgeMeters.toFixed(2)} m •{' '}
+                  {formatARS(
+                    Math.round(
+                      currentDrawer.edgeMeters *
+                        (Number(currentDrawer.edgePricePerMeterArs) ||
+                          Number(edgePricePerMeterArs) ||
+                          650)
+                    )
+                  )}
+                </span>
               </div>
+
+              {/* Selector de cuántos lados llevan filo en el Frente del Cajón */}
+              <div className="bg-[#1b1d1d] p-2.5 rounded-xl border border-white/10 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-[#c8c6c5]">
+                    Lados con filo en Frente ({currentDrawer.frontWidthMm}×
+                    {currentDrawer.frontHeightMm}mm):
+                  </span>
+                  <span className="font-bold text-[#ffb59b] tabular-nums">
+                    {
+                      calcPieceEdgeMetersBySides(
+                        currentDrawer.frontWidthMm,
+                        currentDrawer.frontHeightMm,
+                        (currentDrawer.edgeSidesCount ?? 4) as
+                          | 0
+                          | 1
+                          | 2
+                          | 3
+                          | 4,
+                        currentDrawer.frontQty || 1
+                      ).toFixed(2)
+                    }{' '}
+                    m
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {EDGE_SIDES_BUTTONS.map((sidesNum) => {
+                    const active =
+                      (currentDrawer.edgeSidesCount ?? 4) === sidesNum;
+                    return (
+                      <button
+                        key={sidesNum}
+                        type="button"
+                        onClick={() =>
+                          handleUpdateDrawerField(activeDrawerTab, {
+                            edgeSidesCount: sidesNum,
+                          })
+                        }
+                        className={`py-1.5 rounded-lg text-[10px] font-extrabold border cursor-pointer transition-all ${
+                          active
+                            ? 'bg-[#e87a50] text-[#121414] border-[#ffb59b] shadow-xs'
+                            : 'bg-[#222424] text-[#c8c6c5] border-white/10 hover:text-white'
+                        }`}
+                      >
+                        {sidesNum === 0
+                          ? '0 Lados'
+                          : sidesNum === 1
+                          ? '1 Lado'
+                          : `${sidesNum} Lados`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selector de cuántos lados llevan filo en Laterales y Contrafrente */}
+              <div className="bg-[#1b1d1d] p-2.5 rounded-xl border border-white/10 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-[#c8c6c5]">
+                    Lados con filo en Laterales/Contrafrente:
+                  </span>
+                  <span className="font-bold text-[#ffb59b] tabular-nums">
+                    {(
+                      calcPieceEdgeMetersBySides(
+                        currentDrawer.sidesDepthMm,
+                        currentDrawer.sidesHeightMm,
+                        (currentDrawer.sidesEdgeCount ?? 1) as
+                          | 0
+                          | 1
+                          | 2
+                          | 3
+                          | 4,
+                        currentDrawer.sidesQty || 2
+                      ) +
+                      calcPieceEdgeMetersBySides(
+                        currentDrawer.backWidthMm,
+                        currentDrawer.backHeightMm,
+                        (currentDrawer.sidesEdgeCount ?? 1) as
+                          | 0
+                          | 1
+                          | 2
+                          | 3
+                          | 4,
+                        currentDrawer.backQty || 1
+                      )
+                    ).toFixed(2)}{' '}
+                    m
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {EDGE_SIDES_BUTTONS.map((sidesNum) => {
+                    const active =
+                      (currentDrawer.sidesEdgeCount ?? 1) === sidesNum;
+                    return (
+                      <button
+                        key={sidesNum}
+                        type="button"
+                        onClick={() =>
+                          handleUpdateDrawerField(activeDrawerTab, {
+                            sidesEdgeCount: sidesNum,
+                          })
+                        }
+                        className={`py-1.5 rounded-lg text-[10px] font-extrabold border cursor-pointer transition-all ${
+                          active
+                            ? 'bg-[#e87a50] text-[#121414] border-[#ffb59b] shadow-xs'
+                            : 'bg-[#222424] text-[#c8c6c5] border-white/10 hover:text-white'
+                        }`}
+                      >
+                        {sidesNum === 0
+                          ? '0 Lados'
+                          : sidesNum === 1
+                          ? '1 Lado'
+                          : `${sidesNum} Lados`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
                   <label className="block text-[10px] text-[#c8c6c5] mb-0.5">
@@ -463,28 +644,44 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={currentDrawer.edgeType || 'Filo PVC 22mm × 0.45mm'}
+                    value={
+                      currentDrawer.edgeType || 'Filo PVC 22mm × 0.45mm'
+                    }
                     onChange={(e) =>
-                      handleUpdateDrawerField(activeDrawerTab, {
-                        edgeType: e.target.value,
-                      })
+                      handleUpdateDrawerField(
+                        activeDrawerTab,
+                        {
+                          edgeType: e.target.value,
+                        },
+                        false
+                      )
                     }
                     className="w-full bg-[#222424] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-[10px] text-[#ffb59b] mb-0.5">
-                    Metros (m)
+                    Total Filo (m)
                   </label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="0.05"
                     value={currentDrawer.edgeMeters}
-                    onChange={(e) =>
-                      handleUpdateDrawerField(activeDrawerTab, {
-                        edgeMeters: Math.max(0.1, parseFloat(e.target.value) || 1),
-                      })
-                    }
+                    onChange={(e) => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      const pricePerM =
+                        Number(currentDrawer.edgePricePerMeterArs) ||
+                        Number(edgePricePerMeterArs) ||
+                        650;
+                      handleUpdateDrawerField(
+                        activeDrawerTab,
+                        {
+                          edgeMeters: val,
+                          edgeCostArs: Math.round(val * pricePerM),
+                        },
+                        false
+                      );
+                    }}
                     className="w-full bg-[#222424] border border-[#e87a50] rounded-lg px-2 py-1 text-xs font-bold text-white tabular-nums"
                   />
                 </div>
@@ -495,7 +692,9 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
             <div className="space-y-2 pt-2 border-t border-white/5">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-white">
                 <Wrench className="w-3.5 h-3.5 text-[#e87a50]" />
-                <span>4. Insumos &amp; Herrajes (Correderas, Tiradores, Tornillos)</span>
+                <span>
+                  4. Insumos &amp; Herrajes (Correderas, Tiradores, Tornillos)
+                </span>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -506,9 +705,13 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                   <select
                     value={currentDrawer.slideType}
                     onChange={(e) =>
-                      handleUpdateDrawerField(activeDrawerTab, {
-                        slideType: e.target.value,
-                      })
+                      handleUpdateDrawerField(
+                        activeDrawerTab,
+                        {
+                          slideType: e.target.value,
+                        },
+                        false
+                      )
                     }
                     className="w-full bg-[#222424] border border-white/10 rounded-lg px-2 py-1 text-xs text-white cursor-pointer"
                   >
@@ -539,9 +742,16 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                     min={1}
                     value={currentDrawer.slideQty ?? 1}
                     onChange={(e) =>
-                      handleUpdateDrawerField(activeDrawerTab, {
-                        slideQty: Math.max(1, parseInt(e.target.value, 10) || 1),
-                      })
+                      handleUpdateDrawerField(
+                        activeDrawerTab,
+                        {
+                          slideQty: Math.max(
+                            1,
+                            parseInt(e.target.value, 10) || 1
+                          ),
+                        },
+                        false
+                      )
                     }
                     className="w-full bg-[#222424] border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white tabular-nums"
                   />
@@ -556,9 +766,13 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                   <select
                     value={currentDrawer.handleType}
                     onChange={(e) =>
-                      handleUpdateDrawerField(activeDrawerTab, {
-                        handleType: e.target.value,
-                      })
+                      handleUpdateDrawerField(
+                        activeDrawerTab,
+                        {
+                          handleType: e.target.value,
+                        },
+                        false
+                      )
                     }
                     className="w-full bg-[#222424] border border-white/10 rounded-lg px-2 py-1 text-xs text-white cursor-pointer"
                   >
@@ -589,9 +803,16 @@ export const DrawerConfiguratorBar: React.FC<DrawerConfiguratorBarProps> = ({
                     min={4}
                     value={currentDrawer.screwsCount}
                     onChange={(e) =>
-                      handleUpdateDrawerField(activeDrawerTab, {
-                        screwsCount: Math.max(0, parseInt(e.target.value, 10) || 16),
-                      })
+                      handleUpdateDrawerField(
+                        activeDrawerTab,
+                        {
+                          screwsCount: Math.max(
+                            0,
+                            parseInt(e.target.value, 10) || 16
+                          ),
+                        },
+                        false
+                      )
                     }
                     className="w-full bg-[#222424] border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white tabular-nums"
                   />

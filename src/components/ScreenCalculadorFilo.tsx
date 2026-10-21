@@ -83,7 +83,17 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
   const [pieceLongSides, setPieceLongSides] = useState<0 | 1 | 2>(1);
   const [pieceShortSides, setPieceShortSides] = useState<0 | 1 | 2>(0);
 
-  const activeRoll = rolls.find((r) => r.id === selectedRollId) || rolls[0];
+  const activeRoll: EdgeBandingRoll =
+    rolls.find((r) => r.id === selectedRollId) ||
+    rolls[0] || {
+      id: 'filo-empty',
+      name: 'Rollo de Filo (Sin cargar)',
+      widthThickSpec: 'Tocá + Nuevo Color o el lápiz para configurar',
+      rollLengthMeters: 10,
+      rollPriceArs: 0,
+      swatchColor: '#c99768',
+      trimWasteMmPerSide: 15,
+    };
 
   const pricePerMeterArs =
     activeRoll.rollPriceArs / Math.max(0.5, activeRoll.rollLengthMeters);
@@ -187,6 +197,9 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
       if (cp.edgesType === '4L') {
         longSides = 2;
         shortSides = 2;
+      } else if (cp.edgesType === '3L') {
+        longSides = 2;
+        shortSides = 1;
       } else if (cp.edgesType === '2L') {
         longSides = 2;
         shortSides = 0;
@@ -966,11 +979,11 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
                       Medida: {piece.lengthMm} × {piece.widthMm} mm
                     </span>
                     <span className="text-[#ffb59b] font-semibold tabular-nums">
-                      {piece.longSidesCount} Largo(s) + {piece.shortSidesCount} Ancho(s)
+                      {piece.longSidesCount} Largo(s) + {piece.shortSidesCount} Prof.(s)
                     </span>
                   </div>
 
-                  {/* Quick Side Buttons (1L, 2L, 1A, 2A, 4 Lados) */}
+                  {/* Quick Side Buttons (1L, 2L, 1P, 2P, 4 Lados) */}
                   <div className="grid grid-cols-4 gap-1.5">
                     <button
                       onClick={() =>
@@ -1015,7 +1028,7 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
                           : 'bg-[#161818] text-[#c8c6c5] border-white/10'
                       }`}
                     >
-                      1L + 1A
+                      1L + 1P
                     </button>
                     <button
                       onClick={() =>
@@ -1268,7 +1281,7 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                    Ancho (mm)
+                    Profundidad (mm)
                   </label>
                   <input
                     type="number"
@@ -1315,7 +1328,7 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                    Cantos en el Ancho
+                    Cantos en Profundidad
                   </label>
                   <div className="grid grid-cols-3 gap-1">
                     {([0, 1, 2] as const).map((n) => (
@@ -1329,7 +1342,7 @@ export const ScreenCalculadorFilo: React.FC<ScreenCalculadorFiloProps> = ({
                             : 'bg-[#222424] text-[#c8c6c5] border-white/10'
                         }`}
                       >
-                        {n}A
+                        {n}P
                       </button>
                     ))}
                   </div>

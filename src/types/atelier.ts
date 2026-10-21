@@ -33,7 +33,7 @@ export interface CutPiece {
   quantity: number;
   unitPriceArs: number;
   edgesLabel: string;
-  edgesType: '4L' | '2L' | '1L' | '0L';
+  edgesType: '4L' | '3L' | '2L' | '1L' | '0L';
   allowRotation: boolean;
   mandatoryGrain?: boolean;
 }
@@ -43,7 +43,7 @@ export interface PredefinedCut {
   name: string;
   widthMm: number;
   heightMm: number;
-  edgesType: '4L' | '2L' | '1L' | '0L';
+  edgesType: '4L' | '3L' | '2L' | '1L' | '0L';
   edgesLabel: string;
   allowRotation: boolean;
   mandatoryGrain?: boolean;
@@ -109,7 +109,11 @@ export interface DrawerSpec {
   bottomQty?: number;
   bottomMaterial?: string;
   // 3. Filo (Tapacantos)
+  edgeSidesCount?: 0 | 1 | 2 | 3 | 4;
+  sidesEdgeCount?: 0 | 1 | 2 | 3 | 4;
   edgeMeters: number;
+  edgePricePerMeterArs?: number;
+  edgeCostArs?: number;
   edgeType?: string;
   // 4. Insumos / Herrajes
   slideType: string;
@@ -193,4 +197,8 @@ export interface FurnitureDesign {
   drawerCount?: number;
   drawersConfig?: DrawerSpec[];
   thumbnailUrl?: string;
+  structureEdgeSidesCount?: 0 | 1 | 2 | 3 | 4;
+  edgePricePerMeterArs?: number;
+  totalEdgeMeters?: number;
+  totalEdgeCostArs?: number;
 }

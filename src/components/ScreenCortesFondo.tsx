@@ -118,7 +118,18 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
   const [cutMountType, setCutMountType] = useState<'0L' | '1L' | '2L' | '4L'>('0L');
   const [cutAllowRotation, setCutAllowRotation] = useState<boolean>(true);
 
-  const activeBoard = boards.find((b) => b.id === selectedBoardId) || boards[0];
+  const activeBoard: MelaminaBoard =
+    boards.find((b) => b.id === selectedBoardId) ||
+    boards[0] || {
+      id: 'fondo-empty',
+      name: 'Placa de Fondo (Sin cargar)',
+      brandSpec: 'Tocá + Color o el lápiz para configurar',
+      widthMm: 2750,
+      heightMm: 1830,
+      costArs: 0,
+      swatchColor: '#f5f5f3',
+      grainType: 'horizontal',
+    };
 
   // 2D Guillotine Nesting calculation for Back Panels
   const nestingResult = useMemo(() => {
@@ -139,10 +150,14 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
   const activeNestingBoard: BoardNestingResult =
     nestingResult.boards[activeBoardIndex] || nestingResult.boards[0];
 
-  const boardAreaM2 = Number(
-    ((activeBoard.widthMm * activeBoard.heightMm) / 1_000_000).toFixed(2)
-  );
-  const costPerM2 = Math.round(activeBoard.costArs / Math.max(0.1, boardAreaM2));
+  const boardAreaMm2 = Math.max(1, activeBoard.widthMm * activeBoard.heightMm);
+  const boardAreaM2 = Number((boardAreaMm2 / 1_000_000).toFixed(2));
+  const costPerM2 = Math.round(activeBoard.costArs / Math.max(0.01, boardAreaMm2 / 1_000_000));
+
+  const calcExactFondoCutPrice = (wMm: number, hMm: number): number => {
+    if (activeBoard.costArs <= 0) return 0;
+    return Math.round(((wMm * hMm) / boardAreaMm2) * activeBoard.costArs);
+  };
 
   const totalPiecesCount = nestingResult.totalPiecesRequested;
   const totalBoardsCount = nestingResult.totalBoardsRequired;
@@ -156,7 +171,10 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
   const cutValueArs =
     cutPieces.length === 0
       ? 0
-      : Math.round((efficiencyPct / 100) * (activeBoard.costArs * totalBoardsCount));
+      : cutPieces.reduce(
+          (sum, p) => sum + calcExactFondoCutPrice(p.widthMm, p.heightMm) * p.quantity,
+          0
+        );
 
   const totalSegments = 7;
   const activeSegments =
@@ -228,16 +246,32 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
 
   const handleSaveBoardEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cost = Math.max(500, parseInt(editBoardCost.replace(/\D/g, ''), 10) || 38500);
-    const w = Math.max(500, parseInt(editBoardW, 10) || 2750);
-    const h = Math.max(500, parseInt(editBoardH, 10) || 1830);
-    onUpdateBoard(activeBoard.id, {
-      name: editBoardName.trim() || activeBoard.name,
-      brandSpec: editBoardSpec.trim() || activeBoard.brandSpec,
-      widthMm: w,
-      heightMm: h,
-      costArs: cost,
-    });
+    const cost = Math.max(0, parseInt(editBoardCost.replace(/\D/g, ''), 10) || 0);
+    const w = Math.max(200, parseInt(editBoardW, 10) || 2750);
+    const h = Math.max(200, parseInt(editBoardH, 10) || 1830);
+    if (boards.length === 0) {
+      const newId = `fondo-${Date.now()}`;
+      const created: MelaminaBoard = {
+        id: newId,
+        name: editBoardName.trim() || 'Fondo 3mm',
+        brandSpec: editBoardSpec.trim() || 'Fibroplus 3mm',
+        widthMm: w,
+        heightMm: h,
+        costArs: cost,
+        swatchColor: '#f5f5f3',
+        grainType: 'horizontal',
+      };
+      onAddBoardColor(created);
+      onSelectBoard(newId);
+    } else {
+      onUpdateBoard(activeBoard.id, {
+        name: editBoardName.trim() || activeBoard.name,
+        brandSpec: editBoardSpec.trim() || activeBoard.brandSpec,
+        widthMm: w,
+        heightMm: h,
+        costArs: cost,
+      });
+    }
     setShowEditBoardModal(false);
     onShowToast(`Placa de fondo actualizada: ${formatARS(cost)} ARS`);
   };
@@ -292,8 +326,7 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
     const w = Math.max(50, Math.min(2750, parseInt(cutW, 10) || 800));
     const h = Math.max(50, Math.min(1830, parseInt(cutH, 10) || 500));
     const q = Math.max(1, Math.min(50, parseInt(cutQty, 10) || 1));
-    const area = (w * h) / 1_000_000;
-    const price = Math.round(area * costPerM2 * 1.1);
+    const price = calcExactFondoCutPrice(w, h);
 
     if (editingPieceId) {
       onUpdatePieceDetails(editingPieceId, {
@@ -1009,10 +1042,10 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
                     </div>
 
                     {(() => {
-                      const unitFondoPrice =
-                        piece.unitPriceArs && piece.unitPriceArs > 0
-                          ? piece.unitPriceArs
-                          : Math.round(pieceArea * costPerM2 * 1.15);
+                      const unitFondoPrice = calcExactFondoCutPrice(
+                        piece.widthMm,
+                        piece.heightMm
+                      );
                       const totalFondoPrice = unitFondoPrice * piece.quantity;
                       return (
                         <div className="bg-[#202222] rounded-lg px-2.5 py-1.5 flex flex-col justify-center">
@@ -1166,7 +1199,7 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                    Ancho (mm)
+                    Profundidad (mm)
                   </label>
                   <input
                     type="number"
@@ -1370,7 +1403,7 @@ export const ScreenCortesFondo: React.FC<ScreenCortesFondoProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#e3e2e2] mb-1">
-                    Ancho (mm)
+                    Profundidad (mm)
                   </label>
                   <input
                     type="number"
